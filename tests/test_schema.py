@@ -10,6 +10,23 @@ from nano_tox_agent.schema import (
 )
 
 
+def make_sample(**overrides):
+    values = {
+        "particle_size_nm": 90.0,
+        "zeta_potential_mv": -8.0,
+        "dose_ug_ml": 50.0,
+        "exposure_time_h": 24.0,
+        "material_type": "liposome",
+        "surface_modification": "PEG",
+        "cell_type": "A549",
+        "species": "Human",
+        "tissue": "Lung",
+        "assay_method": "MTT",
+    }
+    values.update(overrides)
+    return PredictionInput(**values)
+
+
 def test_package_imports():
     assert __version__ == "0.1.0"
 
@@ -34,11 +51,47 @@ def test_classify_viability_thresholds():
 
 
 def test_validate_prediction_input_accepts_valid_sample():
-    sample = PredictionInput(90.0, -8.0, 50.0, 24.0, "liposome", "PEG", "A549", "Human", "Lung", "MTT")
+    sample = make_sample()
     assert validate_prediction_input(sample).cell_type == "A549"
 
 
 def test_validate_prediction_input_rejects_invalid_numeric_ranges():
-    sample = PredictionInput(-1.0, -8.0, 50.0, 24.0, "liposome", "PEG", "A549", "Human", "Lung", "MTT")
+    sample = make_sample(particle_size_nm=-1.0)
     with pytest.raises(ValueError, match="particle_size_nm must be greater than 0"):
         validate_prediction_input(sample)
+
+
+def test_validate_prediction_input_rejects_negative_dose():
+    sample = make_sample(dose_ug_ml=-0.1)
+    with pytest.raises(ValueError, match="dose_ug_ml must be greater than or equal to 0"):
+        validate_prediction_input(sample)
+
+
+def test_validate_prediction_input_rejects_non_positive_exposure_time():
+    sample = make_sample(exposure_time_h=0.0)
+    with pytest.raises(ValueError, match="exposure_time_h must be greater than 0"):
+        validate_prediction_input(sample)
+
+
+def test_validate_prediction_input_rejects_blank_categorical_fields():
+    sample = make_sample(cell_type="   ")
+    with pytest.raises(ValueError, match="cell_type must not be empty"):
+        validate_prediction_input(sample)
+
+
+def test_validate_prediction_input_rejects_non_string_categorical_fields():
+    sample = make_sample(cell_type=123)
+    with pytest.raises(ValueError, match="cell_type must be a string"):
+        validate_prediction_input(sample)
+
+
+@pytest.mark.parametrize("field_name", NUMERIC_FEATURES)
+def test_validate_prediction_input_rejects_nan_numeric_fields(field_name):
+    sample = make_sample(**{field_name: float("nan")})
+    with pytest.raises(ValueError, match=f"{field_name} must be finite"):
+        validate_prediction_input(sample)
+
+
+def test_classify_viability_rejects_nan():
+    with pytest.raises(ValueError, match="cell_viability_percent must be finite"):
+        classify_viability(float("nan"))
