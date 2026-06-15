@@ -10,3 +10,4 @@ models/*.joblib
 models/*.json
 data/cache/
 .superpowers/
+.worktrees/
