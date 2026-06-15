@@ -92,6 +92,34 @@ def test_validate_prediction_input_rejects_nan_numeric_fields(field_name):
         validate_prediction_input(sample)
 
 
+@pytest.mark.parametrize("field_name", NUMERIC_FEATURES)
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        (True, "must be a number"),
+        ("1.0", "must be a number"),
+        (float("inf"), "must be finite"),
+        (float("-inf"), "must be finite"),
+    ],
+)
+def test_validate_prediction_input_rejects_invalid_numeric_field_types(field_name, value, message):
+    sample = make_sample(**{field_name: value})
+    with pytest.raises(ValueError, match=f"{field_name} {message}"):
+        validate_prediction_input(sample)
+
+
 def test_classify_viability_rejects_nan():
     with pytest.raises(ValueError, match="cell_viability_percent must be finite"):
         classify_viability(float("nan"))
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        (True, "cell_viability_percent must be a number"),
+        (float("inf"), "cell_viability_percent must be finite"),
+    ],
+)
+def test_classify_viability_rejects_invalid_numeric_values(value, message):
+    with pytest.raises(ValueError, match=message):
+        classify_viability(value)
