@@ -1,0 +1,20 @@
+[project]
+name = "nano-tox-agent"
+version = "0.1.0"
+description = "Nanomaterial cytotoxicity prediction agent prototype"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "joblib>=1.4.2",
+  "matplotlib>=3.8.0",
+  "numpy>=1.26.0",
+  "pandas>=2.2.0",
+  "scikit-learn>=1.4.0",
+  "streamlit>=1.35.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

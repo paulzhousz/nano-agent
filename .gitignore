@@ -1,2 +1,12 @@
+.DS_Store
+.env
+.venv/
+.pytest_cache/
+.ruff_cache/
+.streamlit/secrets.toml
+__pycache__/
+*.py[cod]
+models/*.joblib
+models/*.json
+data/cache/
 .superpowers/
-.worktrees/
