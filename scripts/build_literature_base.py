@@ -49,7 +49,7 @@ LITERATURE = [
         ],
     },
     {
-        "title": "caNanoLab: data sharing to expedite the use of nanotechnology in biomedicine",
+        "title": "caNanoLab cancer nanotechnology data portal",
         "year": 2013,
         "url": "https://cananolab.cancer.gov/",
         "used_for": ["cancer_nanomedicine_context", "deferred_source_cross_check"],

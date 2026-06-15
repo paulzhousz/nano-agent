@@ -59,6 +59,8 @@ TEXT_COLUMNS = [
     "tissue",
     "assay_method",
 ]
+COVERAGE_CATEGORICAL_COLUMNS = TEXT_COLUMNS
+COVERAGE_NUMERIC_COLUMNS = NUMERIC_COLUMNS
 
 DOSE_MEASUREMENTS = [
     {"value_column": "Concentration_d", "unit_column": "Concentration_UNIT_s"},
@@ -573,6 +575,7 @@ def _write_metadata(
             "unit_s": TARGET_VIABILITY_UNIT,
             "normalization": "case-insensitive trim before comparison",
         },
+        "final_coverage_summary": _final_coverage_summary(frame),
         "cleaning_audit": audit,
         "unused_raw_exports": {
             "eNanoMapper": {
@@ -581,14 +584,35 @@ def _write_metadata(
             }
         },
         "excluded_record_policy": "删除缺失目标值、缺失剂量或暴露时间、无法从公开物化记录匹配粒径或 zeta、数值范围无效或重复的记录；保留无法从 guidance 明确映射的细胞/物种/组织上下文，并以 unreported_cell、unreported_species、unreported_tissue 标记。",
-        "scientific_use_limit": "该清洗数据来自 eNanoMapper 公开 Solr 导出并可用于第一版原型训练；正式科学结论仍需复核原始实验条件、剂量单位、终点定义和文献上下文。",
+        "scientific_use_limit": "该清洗数据来自 eNanoMapper 公开 Solr 导出并可用于第一版原型训练；最终训练表覆盖范围很窄，主要集中于少数材料、HMDM/Human/blood_immune 上下文和 LDH assay，不能外推到所有纳米材料、细胞类型或 assay；正式科学结论仍需复核原始实验条件、剂量单位、终点定义和文献上下文。",
         "created_for": "纳米毒性预测智能体第一版可运行原型",
-        "required_report_disclosure": "第一版原型当前只使用 eNanoMapper 公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略、caNanoLab/Curated ML 延后接入状态和公开数据局限。",
+        "required_report_disclosure": "第一版原型当前只使用 eNanoMapper 公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略、caNanoLab/Curated ML 延后接入状态、公开数据局限，以及最终训练表覆盖范围很窄，不能外推到所有纳米材料、细胞类型或 assay。",
     }
     metadata_output_path.write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def _final_coverage_summary(frame: pd.DataFrame) -> dict[str, Any]:
+    return {
+        "record_count": len(frame),
+        "categorical_unique_counts": {
+            column: int(frame[column].nunique())
+            for column in COVERAGE_CATEGORICAL_COLUMNS
+        },
+        "categorical_top_values": {
+            column: {str(key): int(value) for key, value in frame[column].value_counts().to_dict().items()}
+            for column in COVERAGE_CATEGORICAL_COLUMNS
+        },
+        "numeric_ranges": {
+            column: {
+                "min": float(frame[column].min()),
+                "max": float(frame[column].max()),
+            }
+            for column in COVERAGE_NUMERIC_COLUMNS
+        },
+    }
 
 
 if __name__ == "__main__":

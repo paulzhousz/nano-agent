@@ -21,9 +21,9 @@
     {
       "name": "Curated nanotoxicity ML datasets",
       "priority": 3,
-      "purpose": "当原始数据库清洗难度较高时，使用已整理的公开纳米毒性机器学习数据集作为第一版原型训练数据。",
+      "purpose": "当后续阶段需要扩展训练覆盖面且原始数据库清洗难度较高时，可使用已整理的公开纳米毒性机器学习数据集作为未来原型训练补充数据。",
       "url": "https://doi.org/10.1021/acsanm.4c02269",
-      "expected_use": ["prototype_training", "feature_selection", "model_validation"]
+      "expected_use": ["future_prototype_training", "feature_selection", "model_validation"]
     }
   ],
   "required_normalized_columns": [

@@ -32,6 +32,9 @@ def test_public_data_sources_policy_and_priority_order():
     assert sources["source_policy"].startswith("第一版必须接入完整公开数据清洗结果")
     assert sources["active_training_sources"] == ["eNanoMapper"]
     assert sources["deferred_sources"] == EXPECTED_DEFERRED_SOURCES
+    curated_source = next(entry for entry in sources["priority_order"] if entry["name"] == "Curated nanotoxicity ML datasets")
+    assert "future_prototype_training" in curated_source["expected_use"]
+    assert "prototype_training" not in curated_source["expected_use"]
 
 
 def test_public_data_scripts_exist():
@@ -81,6 +84,8 @@ def test_cleaned_public_data_metadata_matches_frame():
     assert metadata["deferred_sources"] == EXPECTED_DEFERRED_SOURCES
     assert "合成" not in metadata["purpose"]
     assert "演示样例" not in metadata["purpose"]
+    assert "不能外推到所有纳米材料、细胞类型或 assay" in metadata["scientific_use_limit"]
+    assert "覆盖范围很窄" in metadata["required_report_disclosure"]
 
 
 def test_cleaning_script_reads_source_policy_file():
@@ -135,6 +140,41 @@ def test_metadata_contains_auditable_cleaning_chain_and_rules():
     assert "无法映射材料组成或细胞类型" not in metadata["excluded_record_policy"]
 
 
+def test_metadata_final_coverage_summary_matches_cleaned_csv():
+    frame = pd.read_csv("data/processed/toxicity_clean.csv")
+    metadata = json.loads(Path("data/processed/toxicity_clean_metadata.json").read_text(encoding="utf-8"))
+    summary = metadata["final_coverage_summary"]
+    categorical_columns = [
+        "material_type",
+        "surface_modification",
+        "cell_type",
+        "species",
+        "tissue",
+        "assay_method",
+    ]
+    numeric_columns = [
+        "particle_size_nm",
+        "zeta_potential_mv",
+        "dose_ug_ml",
+        "exposure_time_h",
+        "cell_viability_percent",
+    ]
+
+    assert summary["record_count"] == len(frame) == metadata["record_count"]
+    for column in categorical_columns:
+        assert summary["categorical_unique_counts"][column] == frame[column].nunique()
+        assert summary["categorical_top_values"][column] == frame[column].value_counts().to_dict()
+
+    for column in numeric_columns:
+        assert summary["numeric_ranges"][column]["min"] == pytest.approx(frame[column].min())
+        assert summary["numeric_ranges"][column]["max"] == pytest.approx(frame[column].max())
+
+    assert summary["categorical_unique_counts"]["assay_method"] == 1
+    assert summary["categorical_unique_counts"]["cell_type"] == 1
+    assert summary["categorical_unique_counts"]["species"] == 1
+    assert summary["categorical_unique_counts"]["tissue"] == 1
+
+
 def test_cleaning_rebuilds_committed_processed_outputs_without_rewriting_repo(tmp_path):
     output_path = tmp_path / "toxicity_clean.csv"
     metadata_path = tmp_path / "toxicity_clean_metadata.json"
@@ -150,6 +190,7 @@ def test_cleaning_rebuilds_committed_processed_outputs_without_rewriting_repo(tm
     assert rebuilt_metadata["source_record_counts"] == committed_metadata["source_record_counts"]
     assert rebuilt_metadata["cleaning_audit"] == committed_metadata["cleaning_audit"]
     assert rebuilt_metadata["target_endpoint_policy"] == committed_metadata["target_endpoint_policy"]
+    assert rebuilt_metadata["final_coverage_summary"] == committed_metadata["final_coverage_summary"]
 
 
 def test_deferred_csv_exports_are_rejected(tmp_path):

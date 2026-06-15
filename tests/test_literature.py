@@ -7,7 +7,7 @@ EXPECTED_TITLES = {
     "The eNanoMapper database for nanomaterial safety information",
     "Predicting Cytotoxicity of Nanoparticles: A Meta-Analysis Using Machine Learning",
     "Application of Machine Learning in Nanotoxicology: A Critical Review and Perspective",
-    "caNanoLab: data sharing to expedite the use of nanotechnology in biomedicine",
+    "caNanoLab cancer nanotechnology data portal",
     "AI and Machine Learning Approaches for Predicting Nanoparticles Toxicity: The Critical Role of Physiochemical Properties",
     "Smart Drug-Delivery Systems for Cancer Nanotherapy",
 }
@@ -40,7 +40,7 @@ def test_cananolab_literature_is_deferred_context_not_training_source():
     entry = next(
         item
         for item in entries
-        if item["title"] == "caNanoLab: data sharing to expedite the use of nanotechnology in biomedicine"
+        if item["title"] == "caNanoLab cancer nanotechnology data portal"
     )
     assert "data_source" not in entry["used_for"]
     assert "deferred_source_cross_check" in entry["used_for"]
