@@ -202,6 +202,20 @@ def test_predict_toxicity_returns_model_owned_result(tmp_path):
     model_path = tmp_path / "toxicity_bundle.joblib"
     trained = load_or_train_bundle(model_path, Path("data/raw/toxicity_samples.csv"))
     assert trained.feature_columns == bundle.feature_columns
+
+
+def test_prediction_behavior_matches_demo_risk_direction():
+    frame = derive_training_labels(load_training_data(Path("data/raw/toxicity_samples.csv")))
+    bundle = build_model_bundle(frame, random_state=7)
+    high_risk = PredictionInput(25.0, 30.0, 120.0, 48.0, "silver", "unmodified", "THP-1", "Human", "Blood", "MTT")
+    lower_risk = PredictionInput(150.0, -20.0, 10.0, 24.0, "liposome", "PEG", "BEAS-2B", "Human", "Lung", "MTT")
+
+    high_result = predict_toxicity(bundle, high_risk)
+    lower_result = predict_toxicity(bundle, lower_risk)
+
+    assert high_result.toxicity_level != "low"
+    assert lower_result.toxicity_level != "high"
+    assert high_result.cell_viability_percent < lower_result.cell_viability_percent
 ```
 
 - [ ] **Step 2: Verify failure**
@@ -253,7 +267,7 @@ def _top_feature_importances(bundle: ModelBundle, limit: int) -> list[tuple[str,
 
 Run: `rtk pytest tests/test_train_predict.py -q`
 
-Expected: PASS with `4 passed`.
+Expected: PASS with `5 passed`.
 
 - [ ] **Step 5: Commit**
 

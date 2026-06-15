@@ -50,6 +50,7 @@ Spec coverage:
 - ML classifier, regressor, persistence, and model-owned prediction: covered by subplan 02.
 - Deterministic explanation and optional LLM fallback: covered by subplan 03.
 - Streamlit UI, full test suite, CLI prediction, local app launch: covered by subplan 04.
+- Engineering review P1/P2 fixes: data provenance, traceable literature URLs, model behavior tests, OpenAI-compatible LLM fallback, UI error handling, and manual browser acceptance are covered by subplans 01-04.
 
 Deferred by design:
 
@@ -64,6 +65,7 @@ Type consistency:
 - Shared types are defined in subplan 01 before being used by subplans 02-04.
 - `ModelBundle`, `predict_toxicity`, and `load_or_train_bundle` are defined in subplan 02 before UI use in subplan 04.
 - `build_explanation`, `TOXICITY_TEXT`, and `generate_llm_response` are defined in subplan 03 before UI use in subplan 04.
+- LLM configuration consistently uses `LLM_API_KEY`, `LLM_API_BASE`, and optional `LLM_MODEL`.
 
 ## Handoff
 

@@ -34,6 +34,14 @@ def test_build_result_payload_maps_labels_for_display():
     assert payload["cell_viability_percent"] == "66.5%"
     assert payload["confidence"] == "0.72"
     assert payload["explanation"] == "解释文本"
+
+
+def test_format_user_error_is_actionable():
+    from app import format_user_error
+
+    assert "数据或模型文件缺失" in format_user_error(FileNotFoundError("missing"))
+    assert "输入或数据格式错误" in format_user_error(ValueError("bad data"))
+    assert "预测失败" in format_user_error(RuntimeError("boom"))
 ```
 
 - [ ] **Step 2: Verify failure**
@@ -71,6 +79,14 @@ def build_result_payload(result: PredictionResult, explanation: str) -> dict[str
     }
 
 
+def format_user_error(error: Exception) -> str:
+    if isinstance(error, FileNotFoundError):
+        return f"数据或模型文件缺失：{error}"
+    if isinstance(error, ValueError):
+        return f"输入或数据格式错误：{error}"
+    return f"预测失败：{error}"
+
+
 def main() -> None:
     st.set_page_config(page_title="纳米毒性预测智能体", layout="wide")
     st.title("面向肿瘤纳米药物筛选的纳米材料毒性预测智能体")
@@ -91,13 +107,17 @@ def main() -> None:
         use_llm = st.checkbox("使用可选 LLM 改写解释", value=False)
 
     if st.button("预测毒性"):
-        bundle = load_or_train_bundle(MODEL_PATH, DATA_PATH)
-        literature = select_literature(load_literature(LITERATURE_PATH), "feature_explanation")
-        result = predict_toxicity(bundle, sample)
-        explanation = build_explanation(sample, result, literature)
-        if use_llm:
-            explanation = generate_llm_response(explanation) or explanation
-        payload = build_result_payload(result, explanation)
+        try:
+            bundle = load_or_train_bundle(MODEL_PATH, DATA_PATH)
+            literature = select_literature(load_literature(LITERATURE_PATH), "feature_explanation")
+            result = predict_toxicity(bundle, sample)
+            explanation = build_explanation(sample, result, literature)
+            if use_llm:
+                explanation = generate_llm_response(explanation) or explanation
+            payload = build_result_payload(result, explanation)
+        except Exception as error:
+            st.error(format_user_error(error))
+            return
         col1, col2, col3 = st.columns(3)
         col1.metric("毒性等级", payload["toxicity_label"])
         col2.metric("预测细胞活力", payload["cell_viability_percent"])
@@ -117,7 +137,7 @@ if __name__ == "__main__":
 
 Run: `rtk pytest tests/test_app_payload.py -q`
 
-Expected: PASS with `1 passed`.
+Expected: PASS with `2 passed`.
 
 ## Task 2: README and End-to-End Checks
 
@@ -154,7 +174,16 @@ streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 
 ## Optional LLM layer
 
-Set `LLM_API_KEY` and `LLM_API_URL` to enable explanation rewriting. The LLM never decides toxicity level or cell viability.
+Set `LLM_API_KEY`, `LLM_API_BASE`, and optionally `LLM_MODEL` to enable OpenAI-compatible explanation rewriting. The LLM never decides toxicity level or cell viability.
+
+## Manual acceptance checklist
+
+1. Start the app with `streamlit run app.py --server.address 127.0.0.1 --server.port 8501`.
+2. Open `http://127.0.0.1:8501`.
+3. Keep the default sidebar values and click `预测毒性`.
+4. Verify the page shows `毒性等级`, `预测细胞活力`, `模型置信度`, `智能体解释`, and `特征重要性`.
+5. Enable `使用可选 LLM 改写解释` without environment variables and click `预测毒性` again.
+6. Verify prediction still succeeds through template fallback.
 ````
 
 - [ ] **Step 2: Run full tests**
@@ -183,7 +212,21 @@ rtk streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 
 Expected: Streamlit prints a local URL ending with `http://127.0.0.1:8501`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Run manual browser acceptance**
+
+Open `http://127.0.0.1:8501` and complete the README checklist:
+
+```text
+[ ] Click 预测毒性 with default values.
+[ ] Confirm toxicity level, cell viability, and confidence metrics render.
+[ ] Confirm 智能体解释 renders text instead of a stack trace.
+[ ] Confirm 特征重要性 renders at least one feature row.
+[ ] Enable 使用可选 LLM 改写解释 with no LLM env vars and confirm template fallback still renders.
+```
+
+Expected: all checklist items pass.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 rtk git add app.py tests/test_app_payload.py README.md

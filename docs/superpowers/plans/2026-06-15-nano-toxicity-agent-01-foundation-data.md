@@ -20,6 +20,7 @@
 - Create: `tests/test_schema.py`
 - Create: `tests/test_literature.py`
 - Create: `data/raw/toxicity_samples.csv`
+- Create: `data/raw/toxicity_samples_metadata.json`
 - Create: `literature/literature_base.json`
 
 ## Task 1: Package Skeleton
@@ -258,7 +259,21 @@ particle_size_nm,zeta_potential_mv,dose_ug_ml,exposure_time_h,material_type,surf
 95,-10,55,24,liposome,PEG,A549,Human,Lung,MTT,82
 ```
 
-- [ ] **Step 2: Create literature JSON**
+- [ ] **Step 2: Create demo data metadata and literature JSON**
+
+Create `data/raw/toxicity_samples_metadata.json`:
+
+```json
+{
+  "dataset_name": "toxicity_samples.csv",
+  "dataset_type": "synthetic_demo",
+  "purpose": "Course prototype training and UI demonstration only",
+  "scientific_use_limit": "Do not report model performance from this file as validated nanotoxicology evidence.",
+  "replacement_path": "Replace with cleaned eNanoMapper, caNanoLab, NanoTox, or PubVINAS records before making scientific claims.",
+  "created_for": "Nano Toxicity Agent first runnable prototype",
+  "required_report_disclosure": "The first prototype uses a small synthetic demo dataset to validate software flow; real experimental data integration is future work."
+}
+```
 
 Create `literature/literature_base.json`:
 
@@ -289,7 +304,7 @@ Create `literature/literature_base.json`:
   {
     "title": "Application of Machine Learning in Nanotoxicology: A Critical Review and Perspective",
     "year": 2024,
-    "url": "https://pubs.acs.org/",
+    "url": "https://doi.org/10.1021/acs.est.4c03217",
     "used_for": ["background", "limitations"],
     "key_points": [
       "Machine learning can accelerate nanotoxicology analysis.",
@@ -356,6 +371,13 @@ def test_select_literature_filters_by_use():
     titles = [entry["title"] for entry in selected]
     assert "AI and Machine Learning Approaches for Predicting Nanoparticles Toxicity: The Critical Role of Physiochemical Properties" in titles
     assert "Smart Drug-Delivery Systems for Cancer Nanotherapy" not in titles
+
+
+def test_literature_entries_have_traceable_urls():
+    entries = load_literature(Path("literature/literature_base.json"))
+    for entry in entries:
+        assert entry["url"].startswith(("https://doi.org/", "https://www.beilstein-journals.org/", "https://cananolab.cancer.gov/", "https://arxiv.org/"))
+        assert entry["url"] != "https://pubs.acs.org/"
 ```
 
 - [ ] **Step 4: Create literature module**
@@ -388,11 +410,11 @@ Run:
 rtk pytest tests/test_schema.py tests/test_literature.py -q
 ```
 
-Expected: PASS with `7 passed`.
+Expected: PASS with `8 passed`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-rtk git add pyproject.toml .gitignore src/nano_tox_agent tests data/raw/toxicity_samples.csv literature/literature_base.json
+rtk git add pyproject.toml .gitignore src/nano_tox_agent tests data/raw/toxicity_samples.csv data/raw/toxicity_samples_metadata.json literature/literature_base.json
 rtk git commit -m "feat: add foundation data and literature library"
 ```

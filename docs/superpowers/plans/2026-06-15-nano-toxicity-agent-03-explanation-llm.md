@@ -41,7 +41,49 @@ def test_build_explanation_includes_prediction_and_suggestions():
 
 def test_generate_llm_response_returns_none_without_key(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
-    monkeypatch.delenv("LLM_API_URL", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    assert generate_llm_response("explain this") is None
+
+
+def test_generate_llm_response_parses_openai_compatible_response(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"choices":[{"message":{"content":"rewritten explanation"}}]}'
+
+    def fake_urlopen(request, timeout):
+        assert request.full_url == "https://api.example.com/v1/chat/completions"
+        assert timeout == 20
+        return FakeResponse()
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+    monkeypatch.setenv("LLM_MODEL", "test-model")
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    assert generate_llm_response("explain this") == "rewritten explanation"
+
+
+def test_generate_llm_response_returns_none_on_bad_response(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"choices":[]}'
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+    monkeypatch.setattr("urllib.request.urlopen", lambda request, timeout: FakeResponse())
+
     assert generate_llm_response("explain this") is None
 ```
 
@@ -113,23 +155,45 @@ Create `src/nano_tox_agent/llm_layer.py`:
 import json
 import os
 import urllib.request
+from urllib.error import URLError
 
 
 def generate_llm_response(prompt: str) -> str | None:
     api_key = os.environ.get("LLM_API_KEY")
-    api_url = os.environ.get("LLM_API_URL")
-    if not api_key or not api_url:
+    api_base = os.environ.get("LLM_API_BASE")
+    model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+    if not api_key or not api_base:
         return None
-    payload = json.dumps({"prompt": prompt}).encode("utf-8")
+    api_url = api_base.rstrip("/") + "/chat/completions"
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Rewrite the model-owned toxicity prediction explanation in clear Chinese. Do not change toxicity level, cell viability, confidence, or cited evidence.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+        }
+    ).encode("utf-8")
     request = urllib.request.Request(
         api_url,
         data=payload,
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        body = json.loads(response.read().decode("utf-8"))
-    text = body.get("text")
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except (OSError, URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    choices = body.get("choices", [])
+    if not choices:
+        return None
+    message = choices[0].get("message", {})
+    text = message.get("content")
     return text.strip() if isinstance(text, str) and text.strip() else None
 ```
 
