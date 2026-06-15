@@ -1,8 +1,15 @@
 {
   "dataset_name": "toxicity_clean.csv",
   "dataset_type": "cleaned_public_nanotoxicity_dataset",
-  "purpose": "第一版模型训练、评估和 UI 预测使用的公开数据清洗结果。",
+  "purpose": "第一版模型训练、评估和 UI 预测使用的 eNanoMapper 公开数据清洗结果。",
   "source_policy_file": "data/raw/data_sources.json",
+  "training_sources": [
+    "eNanoMapper"
+  ],
+  "deferred_sources": [
+    "caNanoLab",
+    "Curated nanotoxicity ML datasets"
+  ],
   "source_record_counts": {
     "eNanoMapper": 474,
     "caNanoLab": 0,
@@ -34,5 +41,5 @@
   "excluded_record_policy": "删除缺失目标值、缺失剂量或暴露时间、无法从公开物化记录匹配粒径或 zeta、无法映射材料组成或细胞类型的记录；删除 cell viability 超出 0-100 的记录。",
   "scientific_use_limit": "该清洗数据来自 eNanoMapper 公开 Solr 导出并可用于第一版原型训练；正式科学结论仍需复核原始实验条件、剂量单位、终点定义和文献上下文。",
   "created_for": "纳米毒性预测智能体第一版可运行原型",
-  "required_report_disclosure": "第一版原型使用公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略和公开数据局限。"
+  "required_report_disclosure": "第一版原型当前只使用 eNanoMapper 公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略、caNanoLab/Curated ML 延后接入状态和公开数据局限。"
 }

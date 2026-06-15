@@ -1,2 +1,2 @@
-No caNanoLab CSV export was used for the first cleaned training dataset.
-The source remains listed for cancer nanomedicine context and future cross-checking.
+The user explicitly decided not to fetch caNanoLab exports in this stage.
+caNanoLab remains listed as a future cross-check and cancer nanomedicine context source, but it is not an active training source for the current cleaned dataset.

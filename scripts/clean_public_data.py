@@ -23,6 +23,8 @@ SOURCE_DIRS = {
     "caNanoLab": Path("data/raw/source_exports/cananolab"),
     "Curated nanotoxicity ML datasets": Path("data/raw/source_exports/curated_ml"),
 }
+ACTIVE_TRAINING_SOURCES = {"eNanoMapper"}
+DEFERRED_SOURCES = ["caNanoLab", "Curated nanotoxicity ML datasets"]
 
 COLUMN_ALIASES = {
     "particle_size_nm": ["particle_size_nm", "size_nm", "diameter_nm", "primary_size_nm"],
@@ -61,8 +63,15 @@ def main() -> None:
     for source_name, directory in SOURCE_DIRS.items():
         csv_paths = sorted(directory.glob("*.csv"))
         if not csv_paths:
+            if source_name in ACTIVE_TRAINING_SOURCES:
+                raise SystemExit(f"Active training source {source_name} has no CSV exports in {directory}")
             source_counts[source_name] = 0
             continue
+        if source_name not in ACTIVE_TRAINING_SOURCES:
+            raise SystemExit(
+                f"Source {source_name} has CSV exports but is not active for this stage; "
+                "add it to ACTIVE_TRAINING_SOURCES before merging it into training data"
+            )
         if source_name == "eNanoMapper":
             normalized = _normalize_enanomapper_exports(directory)
         else:
@@ -283,8 +292,10 @@ def _write_metadata(frame: pd.DataFrame, source_counts: dict[str, int]) -> None:
     metadata = {
         "dataset_name": "toxicity_clean.csv",
         "dataset_type": "cleaned_public_nanotoxicity_dataset",
-        "purpose": "第一版模型训练、评估和 UI 预测使用的公开数据清洗结果。",
+        "purpose": "第一版模型训练、评估和 UI 预测使用的 eNanoMapper 公开数据清洗结果。",
         "source_policy_file": "data/raw/data_sources.json",
+        "training_sources": sorted(ACTIVE_TRAINING_SOURCES),
+        "deferred_sources": DEFERRED_SOURCES,
         "source_record_counts": source_counts,
         "record_count": len(frame),
         "cleaned_output_path": "data/processed/toxicity_clean.csv",
@@ -300,7 +311,7 @@ def _write_metadata(frame: pd.DataFrame, source_counts: dict[str, int]) -> None:
         "excluded_record_policy": "删除缺失目标值、缺失剂量或暴露时间、无法从公开物化记录匹配粒径或 zeta、无法映射材料组成或细胞类型的记录；删除 cell viability 超出 0-100 的记录。",
         "scientific_use_limit": "该清洗数据来自 eNanoMapper 公开 Solr 导出并可用于第一版原型训练；正式科学结论仍需复核原始实验条件、剂量单位、终点定义和文献上下文。",
         "created_for": "纳米毒性预测智能体第一版可运行原型",
-        "required_report_disclosure": "第一版原型使用公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略和公开数据局限。",
+        "required_report_disclosure": "第一版原型当前只使用 eNanoMapper 公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略、caNanoLab/Curated ML 延后接入状态和公开数据局限。",
     }
     Path("data/processed/toxicity_clean_metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",

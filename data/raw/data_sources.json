@@ -1,6 +1,8 @@
 {
-  "source_policy": "第一版必须接入完整公开数据清洗结果；不得用合成数据或小型演示样例替代训练数据。",
+  "source_policy": "第一版必须接入完整公开数据清洗结果；不得用合成数据或小型演示样例替代训练数据。当前阶段用户明确决定训练/清洗数据只接入 eNanoMapper；caNanoLab 与 Curated nanotoxicity ML datasets 保留为 future cross-check / expansion。",
   "cleaned_output_path": "data/processed/toxicity_clean.csv",
+  "active_training_sources": ["eNanoMapper"],
+  "deferred_sources": ["caNanoLab", "Curated nanotoxicity ML datasets"],
   "priority_order": [
     {
       "name": "eNanoMapper",
