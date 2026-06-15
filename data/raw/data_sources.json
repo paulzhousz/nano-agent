@@ -1,0 +1,40 @@
+{
+  "source_policy": "第一版必须接入完整公开数据清洗结果；不得用合成数据或小型演示样例替代训练数据。",
+  "cleaned_output_path": "data/processed/toxicity_clean.csv",
+  "priority_order": [
+    {
+      "name": "eNanoMapper",
+      "priority": 1,
+      "purpose": "通用纳米材料安全与毒性数据，适合训练理化性质到细胞毒性的预测模型。",
+      "url": "https://search.data.enanomapper.net/",
+      "expected_use": ["training_data", "schema_alignment", "nanotoxicology_safety_context"]
+    },
+    {
+      "name": "caNanoLab",
+      "priority": 2,
+      "purpose": "癌症纳米技术相关数据平台，适合支撑肿瘤纳米药物筛选应用背景。",
+      "url": "https://cananolab.cancer.gov/",
+      "expected_use": ["cancer_nanomedicine_context", "source_cross_check"]
+    },
+    {
+      "name": "Curated nanotoxicity ML datasets",
+      "priority": 3,
+      "purpose": "当原始数据库清洗难度较高时，使用已整理的公开纳米毒性机器学习数据集作为第一版原型训练数据。",
+      "url": "https://doi.org/10.1021/acsanm.4c02269",
+      "expected_use": ["prototype_training", "feature_selection", "model_validation"]
+    }
+  ],
+  "required_normalized_columns": [
+    "particle_size_nm",
+    "zeta_potential_mv",
+    "dose_ug_ml",
+    "exposure_time_h",
+    "material_type",
+    "surface_modification",
+    "cell_type",
+    "species",
+    "tissue",
+    "assay_method",
+    "cell_viability_percent"
+  ]
+}
