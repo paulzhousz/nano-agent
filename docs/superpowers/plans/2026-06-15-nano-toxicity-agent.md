@@ -17,10 +17,12 @@ Execute in this order:
 1. [Foundation, Schema, Data, and Literature](2026-06-15-nano-toxicity-agent-01-foundation-data.md)
    - Creates project packaging, domain schema, demo CSV, fixed literature JSON, and tests.
    - Verification: `rtk pytest tests/test_schema.py tests/test_literature.py -q`
+   - Review hardening: metadata provenance is locked by an automated test.
 
 2. [Model Training and Prediction Service](2026-06-15-nano-toxicity-agent-02-modeling-prediction.md)
    - Creates preprocessing, model training, model persistence, and prediction service.
    - Verification: `rtk pytest tests/test_train_predict.py -q`
+   - Review hardening: final prediction models train on full demo data after holdout metric calculation, making the risk-direction test deterministic.
 
 3. [Explanation Engine and Optional LLM Layer](2026-06-15-nano-toxicity-agent-03-explanation-llm.md)
    - Creates deterministic explanation text, experiment suggestions, and no-key LLM fallback.
@@ -29,6 +31,7 @@ Execute in this order:
 4. [Streamlit App and End-to-End Verification](2026-06-15-nano-toxicity-agent-04-app-e2e.md)
    - Creates the Streamlit UI, README, CLI verification path, and final full-suite checks.
    - Verification: `rtk pytest -q` and `rtk streamlit run app.py --server.address 127.0.0.1 --server.port 8501`
+   - Review hardening: Streamlit `AppTest` smoke checks cover default prediction rendering and no-key LLM fallback before manual browser acceptance.
 
 ## Scope
 
@@ -50,7 +53,7 @@ Spec coverage:
 - ML classifier, regressor, persistence, and model-owned prediction: covered by subplan 02.
 - Deterministic explanation and optional LLM fallback: covered by subplan 03.
 - Streamlit UI, full test suite, CLI prediction, local app launch: covered by subplan 04.
-- Engineering review P1/P2 fixes: data provenance, traceable literature URLs, model behavior tests, OpenAI-compatible LLM fallback, UI error handling, and manual browser acceptance are covered by subplans 01-04.
+- Engineering review P1/P2/P3 fixes: data provenance with metadata tests, traceable literature URLs, deterministic model behavior tests, OpenAI-compatible LLM fallback, UI error handling, automated Streamlit smoke checks, and manual browser acceptance are covered by subplans 01-04.
 
 Deferred by design:
 

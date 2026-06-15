@@ -135,21 +135,33 @@ def build_model_bundle(frame: pd.DataFrame, random_state: int = 42) -> ModelBund
     x_train, x_test, y_class_train, y_class_test, y_reg_train, y_reg_test = train_test_split(
         x, y_class, y_reg, test_size=0.25, random_state=random_state, stratify=y_class
     )
-    classifier = Pipeline([
+    evaluation_classifier = Pipeline([
         ("preprocess", make_preprocessor()),
-        ("model", RandomForestClassifier(n_estimators=100, random_state=random_state, class_weight="balanced")),
+        ("model", RandomForestClassifier(n_estimators=100, random_state=random_state, class_weight="balanced", bootstrap=False)),
     ])
-    regressor = Pipeline([
+    evaluation_regressor = Pipeline([
         ("preprocess", make_preprocessor()),
-        ("model", RandomForestRegressor(n_estimators=100, random_state=random_state)),
+        ("model", RandomForestRegressor(n_estimators=100, random_state=random_state, bootstrap=False)),
     ])
-    classifier.fit(x_train, y_class_train)
-    regressor.fit(x_train, y_reg_train)
-    class_pred = classifier.predict(x_test)
-    reg_pred = regressor.predict(x_test)
+    evaluation_classifier.fit(x_train, y_class_train)
+    evaluation_regressor.fit(x_train, y_reg_train)
+    class_pred = evaluation_classifier.predict(x_test)
+    reg_pred = evaluation_regressor.predict(x_test)
+
+    final_classifier = Pipeline([
+        ("preprocess", make_preprocessor()),
+        ("model", RandomForestClassifier(n_estimators=100, random_state=random_state, class_weight="balanced", bootstrap=False)),
+    ])
+    final_regressor = Pipeline([
+        ("preprocess", make_preprocessor()),
+        ("model", RandomForestRegressor(n_estimators=100, random_state=random_state, bootstrap=False)),
+    ])
+    final_classifier.fit(x, y_class)
+    final_regressor.fit(x, y_reg)
+
     return ModelBundle(
-        classifier=classifier,
-        regressor=regressor,
+        classifier=final_classifier,
+        regressor=final_regressor,
         feature_columns=FEATURE_COLUMNS,
         classification_metrics={
             "accuracy": float(accuracy_score(y_class_test, class_pred)),
@@ -215,6 +227,8 @@ def test_prediction_behavior_matches_demo_risk_direction():
 
     assert high_result.toxicity_level != "low"
     assert lower_result.toxicity_level != "high"
+    assert high_result.toxicity_level == "high"
+    assert lower_result.toxicity_level == "low"
     assert high_result.cell_viability_percent < lower_result.cell_viability_percent
 ```
 

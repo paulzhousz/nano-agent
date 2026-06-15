@@ -23,6 +23,8 @@
 Create `tests/test_app_payload.py`:
 
 ```python
+from streamlit.testing.v1 import AppTest
+
 from app import build_result_payload
 from nano_tox_agent.schema import PredictionResult
 
@@ -42,6 +44,36 @@ def test_format_user_error_is_actionable():
     assert "数据或模型文件缺失" in format_user_error(FileNotFoundError("missing"))
     assert "输入或数据格式错误" in format_user_error(ValueError("bad data"))
     assert "预测失败" in format_user_error(RuntimeError("boom"))
+
+
+def test_streamlit_default_prediction_flow_renders_result():
+    app = AppTest.from_file("app.py")
+    app.run()
+    assert not app.exception
+
+    app.button[0].click().run()
+    assert not app.exception
+
+    metric_labels = [metric.label for metric in app.metric]
+    assert "毒性等级" in metric_labels
+    assert "预测细胞活力" in metric_labels
+    assert "模型置信度" in metric_labels
+    assert any("智能体解释" in subheader.value for subheader in app.subheader)
+    assert any("特征重要性" in subheader.value for subheader in app.subheader)
+
+
+def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+
+    app = AppTest.from_file("app.py")
+    app.run()
+    assert not app.exception
+
+    app.checkbox[0].check().run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert any("智能体解释" in subheader.value for subheader in app.subheader)
 ```
 
 - [ ] **Step 2: Verify failure**
@@ -137,7 +169,7 @@ if __name__ == "__main__":
 
 Run: `rtk pytest tests/test_app_payload.py -q`
 
-Expected: PASS with `2 passed`.
+Expected: PASS with `4 passed`.
 
 ## Task 2: README and End-to-End Checks
 
@@ -190,7 +222,7 @@ Set `LLM_API_KEY`, `LLM_API_BASE`, and optionally `LLM_MODEL` to enable OpenAI-c
 
 Run: `rtk pytest -q`
 
-Expected: PASS with all tests passing.
+Expected: PASS with all tests passing, including the two Streamlit `AppTest` smoke checks.
 
 - [ ] **Step 3: Verify CLI prediction**
 

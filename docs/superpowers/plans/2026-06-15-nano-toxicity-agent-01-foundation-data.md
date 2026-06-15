@@ -354,6 +354,7 @@ Create `tests/test_literature.py`:
 
 ```python
 from pathlib import Path
+import json
 
 from nano_tox_agent.literature import load_literature, select_literature
 
@@ -378,6 +379,14 @@ def test_literature_entries_have_traceable_urls():
     for entry in entries:
         assert entry["url"].startswith(("https://doi.org/", "https://www.beilstein-journals.org/", "https://cananolab.cancer.gov/", "https://arxiv.org/"))
         assert entry["url"] != "https://pubs.acs.org/"
+
+
+def test_demo_dataset_metadata_discloses_synthetic_source():
+    metadata = json.loads(Path("data/raw/toxicity_samples_metadata.json").read_text(encoding="utf-8"))
+    assert metadata["dataset_type"] == "synthetic_demo"
+    assert "Course prototype" in metadata["purpose"]
+    assert "Do not report model performance" in metadata["scientific_use_limit"]
+    assert "required_report_disclosure" in metadata
 ```
 
 - [ ] **Step 4: Create literature module**
@@ -410,7 +419,7 @@ Run:
 rtk pytest tests/test_schema.py tests/test_literature.py -q
 ```
 
-Expected: PASS with `8 passed`.
+Expected: PASS with `9 passed`.
 
 - [ ] **Step 6: Commit**
 
