@@ -1,26 +1,26 @@
-# Nano Toxicity Agent Explanation and LLM Implementation Plan
+# 纳米毒性预测智能体解释与 LLM 实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给智能体执行者：** 必须使用子技能：`superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans`，按任务逐步执行本计划。步骤使用复选框（`- [ ]`）语法跟踪。
 
-**Goal:** Generate deterministic Chinese explanations and provide an optional LLM rewrite layer that safely falls back when no API is configured.
+**目标：** 生成确定性的中文解释，并提供一个可选 LLM 改写层；未配置 API 时安全回退。
 
-**Architecture:** This subplan depends on subplans 01 and 02 for schema, prediction result types, and literature entries. It does not alter model prediction decisions.
+**架构：** 本子计划依赖子计划 01 和 02 提供的 schema、预测结果类型和文献条目。它不改变模型预测结论。
 
-**Tech Stack:** Python standard library, pytest.
+**技术栈：** Python 3.12、uv、Python 标准库、pytest。
 
 ---
 
-## Files
+## 文件
 
-- Create: `src/nano_tox_agent/explain.py`
-- Create: `src/nano_tox_agent/llm_layer.py`
-- Create: `tests/test_explain_llm.py`
+- 创建：`src/nano_tox_agent/explain.py`
+- 创建：`src/nano_tox_agent/llm_layer.py`
+- 创建：`tests/test_explain_llm.py`
 
-## Task 1: Explanation Engine
+## 任务 1：解释引擎
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **步骤 1：编写失败测试**
 
-Create `tests/test_explain_llm.py`:
+创建 `tests/test_explain_llm.py`：
 
 ```python
 from nano_tox_agent.explain import build_explanation
@@ -87,15 +87,15 @@ def test_generate_llm_response_returns_none_on_bad_response(monkeypatch):
     assert generate_llm_response("explain this") is None
 ```
 
-- [ ] **Step 2: Verify failure**
+- [ ] **步骤 2：验证失败**
 
-Run: `rtk pytest tests/test_explain_llm.py -q`
+运行：`rtk uv run pytest tests/test_explain_llm.py -q`
 
-Expected: FAIL with `ModuleNotFoundError: No module named 'nano_tox_agent.explain'`.
+预期：失败，报 `ModuleNotFoundError: No module named 'nano_tox_agent.explain'`。
 
-- [ ] **Step 3: Create explanation module**
+- [ ] **步骤 3：创建解释模块**
 
-Create `src/nano_tox_agent/explain.py`:
+创建 `src/nano_tox_agent/explain.py`：
 
 ```python
 from typing import Any
@@ -147,9 +147,9 @@ def _clean_feature_name(feature_name: str) -> str:
     return feature_name.replace("numeric__", "").replace("categorical__", "").replace("_", " ")
 ```
 
-- [ ] **Step 4: Create optional LLM module**
+- [ ] **步骤 4：创建可选 LLM 模块**
 
-Create `src/nano_tox_agent/llm_layer.py`:
+创建 `src/nano_tox_agent/llm_layer.py`：
 
 ```python
 import json
@@ -171,7 +171,7 @@ def generate_llm_response(prompt: str) -> str | None:
             "messages": [
                 {
                     "role": "system",
-                    "content": "Rewrite the model-owned toxicity prediction explanation in clear Chinese. Do not change toxicity level, cell viability, confidence, or cited evidence.",
+                    "content": "请用清晰中文改写模型拥有的毒性预测解释。不要改变毒性等级、细胞活力、置信度或引用依据。",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -197,18 +197,18 @@ def generate_llm_response(prompt: str) -> str | None:
     return text.strip() if isinstance(text, str) and text.strip() else None
 ```
 
-- [ ] **Step 5: Verify subplan**
+- [ ] **步骤 5：验证子计划**
 
-Run:
+运行：
 
 ```bash
-rtk pytest tests/test_explain_llm.py -q
-rtk pytest tests/test_schema.py tests/test_literature.py tests/test_train_predict.py tests/test_explain_llm.py -q
+rtk uv run pytest tests/test_explain_llm.py -q
+rtk uv run pytest tests/test_schema.py tests/test_literature.py tests/test_train_predict.py tests/test_explain_llm.py -q
 ```
 
-Expected: PASS with all existing tests passing.
+预期：通过，并且所有既有测试都通过。
 
-- [ ] **Step 6: Commit**
+- [ ] **步骤 6：提交**
 
 ```bash
 rtk git add src/nano_tox_agent/explain.py src/nano_tox_agent/llm_layer.py tests/test_explain_llm.py

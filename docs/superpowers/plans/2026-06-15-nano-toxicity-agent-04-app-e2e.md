@@ -1,26 +1,26 @@
-# Nano Toxicity Agent Streamlit App and E2E Implementation Plan
+# 纳米毒性预测智能体 Streamlit 应用与 E2E 实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给智能体执行者：** 必须使用子技能：`superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans`，按任务逐步执行本计划。步骤使用复选框（`- [ ]`）语法跟踪。
 
-**Goal:** Add the runnable Streamlit interface, README, and end-to-end verification commands.
+**目标：** 添加可运行的 Streamlit 界面、README 和端到端验证命令。
 
-**Architecture:** This subplan depends on subplans 01-03. The UI calls the prediction service, literature loader, explanation engine, and optional LLM layer without changing their behavior.
+**架构：** 本子计划依赖子计划 01-03。UI 调用预测服务、文献加载器、解释引擎和可选 LLM 层，但不改变它们的行为。
 
-**Tech Stack:** Streamlit, pytest, Python CLI verification.
+**技术栈：** Python 3.12、uv、Streamlit、pytest、Python CLI 验证。
 
 ---
 
-## Files
+## 文件
 
-- Create: `app.py`
-- Create: `tests/test_app_payload.py`
-- Create: `README.md`
+- 创建：`app.py`
+- 创建：`tests/test_app_payload.py`
+- 创建：`README.md`
 
-## Task 1: Streamlit Payload Helper and App
+## 任务 1：Streamlit 结果载荷辅助函数与应用
 
-- [ ] **Step 1: Write failing app helper test**
+- [ ] **步骤 1：编写失败的应用 helper 测试**
 
-Create `tests/test_app_payload.py`:
+创建 `tests/test_app_payload.py`：
 
 ```python
 from streamlit.testing.v1 import AppTest
@@ -76,15 +76,15 @@ def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
     assert any("智能体解释" in subheader.value for subheader in app.subheader)
 ```
 
-- [ ] **Step 2: Verify failure**
+- [ ] **步骤 2：验证失败**
 
-Run: `rtk pytest tests/test_app_payload.py -q`
+运行：`rtk uv run pytest tests/test_app_payload.py -q`
 
-Expected: FAIL with `ModuleNotFoundError: No module named 'app'`.
+预期：失败，报 `ModuleNotFoundError: No module named 'app'`。
 
-- [ ] **Step 3: Create Streamlit app**
+- [ ] **步骤 3：创建 Streamlit 应用**
 
-Create `app.py`:
+创建 `app.py`：
 
 ```python
 from pathlib import Path
@@ -97,7 +97,7 @@ from nano_tox_agent.llm_layer import generate_llm_response
 from nano_tox_agent.predict import load_or_train_bundle, predict_toxicity
 from nano_tox_agent.schema import PredictionInput, PredictionResult
 
-DATA_PATH = Path("data/raw/toxicity_samples.csv")
+DATA_PATH = Path("data/processed/toxicity_clean.csv")
 MODEL_PATH = Path("models/toxicity_bundle.joblib")
 LITERATURE_PATH = Path("literature/literature_base.json")
 
@@ -165,100 +165,103 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Verify app helper**
+- [ ] **步骤 4：验证应用 helper**
 
-Run: `rtk pytest tests/test_app_payload.py -q`
+运行：`rtk uv run pytest tests/test_app_payload.py -q`
 
-Expected: PASS with `4 passed`.
+预期：通过，显示 `4 passed`。
 
-## Task 2: README and End-to-End Checks
+## 任务 2：README 与端到端检查
 
-- [ ] **Step 1: Create README**
+- [ ] **步骤 1：创建 README**
 
-Create `README.md`:
+创建 `README.md`：
 
 ````markdown
-# Nano Toxicity Agent
+# 纳米毒性预测智能体
 
-Runnable Streamlit prototype for nanomaterial cytotoxicity prediction.
+用于纳米材料细胞毒性预测的可运行 Streamlit 原型。
 
-## Scope
+## 范围
 
-The app predicts in vitro cytotoxicity risk for candidate nanomaterials. Tumor nanomedicine is the application background; the app does not predict clinical human toxicity or anti-tumor efficacy.
+本应用预测候选纳米材料的体外细胞毒性风险。肿瘤纳米医学是应用背景；本应用不预测临床人体毒性，也不预测抗肿瘤疗效。
 
-## Setup
+第一版模型使用 `data/processed/toxicity_clean.csv` 中的完整公开数据清洗结果训练。报告和演示必须同时披露 `data/processed/toxicity_clean_metadata.json` 中的数据来源、清洗规则和记录数量。
 
-```bash
-python -m pip install -e ".[dev]"
-```
-
-## Test
+## 安装
 
 ```bash
-pytest -q
+rtk uv venv --python 3.12
+rtk uv sync --extra dev
 ```
 
-## Run
+## 测试
 
 ```bash
-streamlit run app.py --server.address 127.0.0.1 --server.port 8501
+rtk uv run pytest -q
 ```
 
-## Optional LLM layer
+## 运行
 
-Set `LLM_API_KEY`, `LLM_API_BASE`, and optionally `LLM_MODEL` to enable OpenAI-compatible explanation rewriting. The LLM never decides toxicity level or cell viability.
+```bash
+rtk uv run streamlit run app.py --server.address 127.0.0.1 --server.port 8501
+```
 
-## Manual acceptance checklist
+## 可选 LLM 层
 
-1. Start the app with `streamlit run app.py --server.address 127.0.0.1 --server.port 8501`.
-2. Open `http://127.0.0.1:8501`.
-3. Keep the default sidebar values and click `预测毒性`.
-4. Verify the page shows `毒性等级`, `预测细胞活力`, `模型置信度`, `智能体解释`, and `特征重要性`.
-5. Enable `使用可选 LLM 改写解释` without environment variables and click `预测毒性` again.
-6. Verify prediction still succeeds through template fallback.
+设置 `LLM_API_KEY`、`LLM_API_BASE` 和可选的 `LLM_MODEL`，即可启用 OpenAI-compatible 的解释改写。LLM 永远不决定毒性等级或细胞活力。
+
+## 手动验收清单
+
+1. 使用 `rtk uv run streamlit run app.py --server.address 127.0.0.1 --server.port 8501` 启动应用。
+2. 打开 `http://127.0.0.1:8501`。
+3. 保持侧边栏默认值，点击 `预测毒性`。
+4. 确认页面显示 `毒性等级`、`预测细胞活力`、`模型置信度`、`智能体解释` 和 `特征重要性`。
+5. 在不设置环境变量的情况下启用 `使用可选 LLM 改写解释`，再次点击 `预测毒性`。
+6. 确认预测仍通过模板 fallback 成功渲染。
 ````
 
-- [ ] **Step 2: Run full tests**
+- [ ] **步骤 2：运行完整测试**
 
-Run: `rtk pytest -q`
+运行：`rtk uv run pytest -q`
 
-Expected: PASS with all tests passing, including the two Streamlit `AppTest` smoke checks.
+预期：通过，所有测试都通过，包括两个 Streamlit `AppTest` smoke 检查。
 
-- [ ] **Step 3: Verify CLI prediction**
+- [ ] **步骤 3：验证 CLI 预测**
 
-Run:
-
-```bash
-rtk python -c "from pathlib import Path; from nano_tox_agent.predict import load_or_train_bundle, predict_toxicity; from nano_tox_agent.schema import PredictionInput; bundle=load_or_train_bundle(Path('models/toxicity_bundle.joblib'), Path('data/raw/toxicity_samples.csv')); sample=PredictionInput(90,-8,50,24,'liposome','PEG','A549','Human','Lung','MTT'); print(predict_toxicity(bundle, sample))"
-```
-
-Expected: prints a `PredictionResult` with toxicity level `low`, `medium`, or `high`.
-
-- [ ] **Step 4: Launch local app**
-
-Run:
+运行：
 
 ```bash
-rtk streamlit run app.py --server.address 127.0.0.1 --server.port 8501
+rtk uv run python -c "from pathlib import Path; from nano_tox_agent.predict import load_or_train_bundle, predict_toxicity; from nano_tox_agent.schema import PredictionInput; bundle=load_or_train_bundle(Path('models/toxicity_bundle.joblib'), Path('data/processed/toxicity_clean.csv')); sample=PredictionInput(90,-8,50,24,'liposome','PEG','A549','Human','Lung','MTT'); print(predict_toxicity(bundle, sample))"
 ```
 
-Expected: Streamlit prints a local URL ending with `http://127.0.0.1:8501`.
+预期：打印一个 `PredictionResult`，其中毒性等级为 `low`、`medium` 或 `high`。
 
-- [ ] **Step 5: Run manual browser acceptance**
+- [ ] **步骤 4：启动本地应用**
 
-Open `http://127.0.0.1:8501` and complete the README checklist:
+运行：
+
+```bash
+rtk uv run streamlit run app.py --server.address 127.0.0.1 --server.port 8501
+```
+
+预期：Streamlit 打印一个以 `http://127.0.0.1:8501` 结尾的本地 URL。
+
+- [ ] **步骤 5：运行手动浏览器验收**
+
+打开 `http://127.0.0.1:8501`，并完成 README 清单：
 
 ```text
-[ ] Click 预测毒性 with default values.
-[ ] Confirm toxicity level, cell viability, and confidence metrics render.
-[ ] Confirm 智能体解释 renders text instead of a stack trace.
-[ ] Confirm 特征重要性 renders at least one feature row.
-[ ] Enable 使用可选 LLM 改写解释 with no LLM env vars and confirm template fallback still renders.
+[ ] 使用默认值点击 预测毒性。
+[ ] 确认毒性等级、细胞活力和置信度指标已渲染。
+[ ] 确认 智能体解释 渲染为文本，而不是堆栈错误。
+[ ] 确认 特征重要性 至少渲染一行特征。
+[ ] 在没有 LLM 环境变量的情况下启用 使用可选 LLM 改写解释，并确认模板 fallback 仍然渲染。
 ```
 
-Expected: all checklist items pass.
+预期：所有清单项都通过。
 
-- [ ] **Step 6: Commit**
+- [ ] **步骤 6：提交**
 
 ```bash
 rtk git add app.py tests/test_app_payload.py README.md

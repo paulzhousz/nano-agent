@@ -1,27 +1,27 @@
-# Nano Toxicity Agent Modeling and Prediction Implementation Plan
+# 纳米毒性预测智能体建模与预测实现计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给智能体执行者：** 必须使用子技能：`superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans`，按任务逐步执行本计划。步骤使用复选框（`- [ ]`）语法跟踪。
 
-**Goal:** Train classifier/regressor pipelines and expose a prediction service that returns model-owned toxicity results.
+**目标：** 训练分类/回归 pipeline，并暴露一个返回模型自有毒性结论的预测服务。
 
-**Architecture:** This subplan depends on subplan 01 for schema and demo data. It produces reusable training and prediction modules without Streamlit or LLM code.
+**架构：** 本子计划依赖子计划 01 提供的 schema、公开数据来源契约和完整公开数据清洗结果。它产出可复用的训练与预测模块，不包含 Streamlit 或 LLM 代码。
 
-**Tech Stack:** pandas, scikit-learn, joblib, pytest.
+**技术栈：** Python 3.12、uv、pandas、scikit-learn、joblib、pytest。
 
 ---
 
-## Files
+## 文件
 
-- Create: `src/nano_tox_agent/preprocess.py`
-- Create: `src/nano_tox_agent/train.py`
-- Create: `src/nano_tox_agent/predict.py`
-- Create: `tests/test_train_predict.py`
+- 创建：`src/nano_tox_agent/preprocess.py`
+- 创建：`src/nano_tox_agent/train.py`
+- 创建：`src/nano_tox_agent/predict.py`
+- 创建：`tests/test_train_predict.py`
 
-## Task 1: Training Pipeline
+## 任务 1：训练 Pipeline
 
-- [ ] **Step 1: Write failing training tests**
+- [ ] **步骤 1：编写失败的训练测试**
 
-Create `tests/test_train_predict.py`:
+创建 `tests/test_train_predict.py`：
 
 ```python
 from pathlib import Path
@@ -33,8 +33,8 @@ from nano_tox_agent.train import build_model_bundle, derive_training_labels, loa
 
 
 def test_load_training_data_has_expected_columns():
-    frame = load_training_data(Path("data/raw/toxicity_samples.csv"))
-    assert len(frame) == 20
+    frame = load_training_data(Path("data/processed/toxicity_clean.csv"))
+    assert len(frame) >= 100
     assert "particle_size_nm" in frame.columns
     assert "cell_viability_percent" in frame.columns
 
@@ -46,7 +46,7 @@ def test_derive_training_labels_adds_toxicity_level():
 
 
 def test_build_model_bundle_trains_and_saves(tmp_path):
-    frame = derive_training_labels(load_training_data(Path("data/raw/toxicity_samples.csv")))
+    frame = derive_training_labels(load_training_data(Path("data/processed/toxicity_clean.csv")))
     bundle = build_model_bundle(frame, random_state=7)
     assert bundle.classification_metrics["accuracy"] >= 0.0
     assert bundle.regression_metrics["mae"] >= 0.0
@@ -56,15 +56,15 @@ def test_build_model_bundle_trains_and_saves(tmp_path):
     assert output_path.exists()
 ```
 
-- [ ] **Step 2: Verify failure**
+- [ ] **步骤 2：验证失败**
 
-Run: `rtk pytest tests/test_train_predict.py -q`
+运行：`rtk uv run pytest tests/test_train_predict.py -q`
 
-Expected: FAIL with `ModuleNotFoundError: No module named 'nano_tox_agent.train'`.
+预期：失败，报 `ModuleNotFoundError: No module named 'nano_tox_agent.train'`。
 
-- [ ] **Step 3: Create preprocessing module**
+- [ ] **步骤 3：创建预处理模块**
 
-Create `src/nano_tox_agent/preprocess.py`:
+创建 `src/nano_tox_agent/preprocess.py`：
 
 ```python
 from sklearn.compose import ColumnTransformer
@@ -86,9 +86,9 @@ def make_preprocessor() -> ColumnTransformer:
     )
 ```
 
-- [ ] **Step 4: Create training module**
+- [ ] **步骤 4：创建训练模块**
 
-Create `src/nano_tox_agent/train.py`:
+创建 `src/nano_tox_agent/train.py`：
 
 ```python
 from dataclasses import dataclass
@@ -186,24 +186,24 @@ def load_model_bundle(path: Path) -> ModelBundle:
     return bundle
 ```
 
-- [ ] **Step 5: Verify training**
+- [ ] **步骤 5：验证训练**
 
-Run: `rtk pytest tests/test_train_predict.py -q`
+运行：`rtk uv run pytest tests/test_train_predict.py -q`
 
-Expected: PASS with `3 passed`.
+预期：通过，显示 `3 passed`。
 
-## Task 2: Prediction Service
+## 任务 2：预测服务
 
-- [ ] **Step 1: Add failing prediction test**
+- [ ] **步骤 1：添加失败的预测测试**
 
-Append to `tests/test_train_predict.py`:
+追加到 `tests/test_train_predict.py`：
 
 ```python
 from nano_tox_agent.predict import load_or_train_bundle, predict_toxicity
 
 
 def test_predict_toxicity_returns_model_owned_result(tmp_path):
-    frame = derive_training_labels(load_training_data(Path("data/raw/toxicity_samples.csv")))
+    frame = derive_training_labels(load_training_data(Path("data/processed/toxicity_clean.csv")))
     bundle = build_model_bundle(frame, random_state=7)
     sample = PredictionInput(90.0, -8.0, 50.0, 24.0, "liposome", "PEG", "A549", "Human", "Lung", "MTT")
     result = predict_toxicity(bundle, sample)
@@ -212,35 +212,32 @@ def test_predict_toxicity_returns_model_owned_result(tmp_path):
     assert 0.0 <= result.confidence <= 1.0
     assert len(result.top_features) == 5
     model_path = tmp_path / "toxicity_bundle.joblib"
-    trained = load_or_train_bundle(model_path, Path("data/raw/toxicity_samples.csv"))
+    trained = load_or_train_bundle(model_path, Path("data/processed/toxicity_clean.csv"))
     assert trained.feature_columns == bundle.feature_columns
 
 
-def test_prediction_behavior_matches_demo_risk_direction():
-    frame = derive_training_labels(load_training_data(Path("data/raw/toxicity_samples.csv")))
+def test_prediction_behavior_is_deterministic_for_same_input():
+    frame = derive_training_labels(load_training_data(Path("data/processed/toxicity_clean.csv")))
     bundle = build_model_bundle(frame, random_state=7)
-    high_risk = PredictionInput(25.0, 30.0, 120.0, 48.0, "silver", "unmodified", "THP-1", "Human", "Blood", "MTT")
-    lower_risk = PredictionInput(150.0, -20.0, 10.0, 24.0, "liposome", "PEG", "BEAS-2B", "Human", "Lung", "MTT")
+    sample = PredictionInput(90.0, -8.0, 50.0, 24.0, "liposome", "PEG", "A549", "Human", "Lung", "MTT")
 
-    high_result = predict_toxicity(bundle, high_risk)
-    lower_result = predict_toxicity(bundle, lower_risk)
+    first = predict_toxicity(bundle, sample)
+    second = predict_toxicity(bundle, sample)
 
-    assert high_result.toxicity_level != "low"
-    assert lower_result.toxicity_level != "high"
-    assert high_result.toxicity_level == "high"
-    assert lower_result.toxicity_level == "low"
-    assert high_result.cell_viability_percent < lower_result.cell_viability_percent
+    assert first == second
+    assert first.toxicity_level in {"low", "medium", "high"}
+    assert 0.0 <= first.cell_viability_percent <= 100.0
 ```
 
-- [ ] **Step 2: Verify failure**
+- [ ] **步骤 2：验证失败**
 
-Run: `rtk pytest tests/test_train_predict.py::test_predict_toxicity_returns_model_owned_result -q`
+运行：`rtk uv run pytest tests/test_train_predict.py::test_predict_toxicity_returns_model_owned_result -q`
 
-Expected: FAIL with `ModuleNotFoundError: No module named 'nano_tox_agent.predict'`.
+预期：失败，报 `ModuleNotFoundError: No module named 'nano_tox_agent.predict'`。
 
-- [ ] **Step 3: Create prediction service**
+- [ ] **步骤 3：创建预测服务**
 
-Create `src/nano_tox_agent/predict.py`:
+创建 `src/nano_tox_agent/predict.py`：
 
 ```python
 from pathlib import Path
@@ -277,13 +274,13 @@ def _top_feature_importances(bundle: ModelBundle, limit: int) -> list[tuple[str,
     return [(str(name), round(float(score), 4)) for name, score in pairs[:limit]]
 ```
 
-- [ ] **Step 4: Verify subplan**
+- [ ] **步骤 4：验证子计划**
 
-Run: `rtk pytest tests/test_train_predict.py -q`
+运行：`rtk uv run pytest tests/test_train_predict.py -q`
 
-Expected: PASS with `5 passed`.
+预期：通过，显示 `5 passed`。
 
-- [ ] **Step 5: Commit**
+- [ ] **步骤 5：提交**
 
 ```bash
 rtk git add src/nano_tox_agent/preprocess.py src/nano_tox_agent/train.py src/nano_tox_agent/predict.py tests/test_train_predict.py
