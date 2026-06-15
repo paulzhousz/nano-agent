@@ -25,6 +25,10 @@ SOURCE_DIRS = {
     "Curated nanotoxicity ML datasets": Path("data/raw/source_exports/curated_ml"),
 }
 SOURCE_POLICY_PATH = Path("data/raw/data_sources.json")
+DEFAULT_PROCESSED_OUTPUT_PATH = Path("data/processed/toxicity_clean.csv")
+DEFAULT_METADATA_OUTPUT_PATH = Path("data/processed/toxicity_clean_metadata.json")
+TARGET_VIABILITY_ENDPOINT = "% CELL VIABILITY"
+TARGET_VIABILITY_UNIT = "%"
 
 COLUMN_ALIASES = {
     "particle_size_nm": ["particle_size_nm", "size_nm", "diameter_nm", "primary_size_nm"],
@@ -124,7 +128,11 @@ SIZE_BUCKET_PRIORITY = {
 }
 
 
-def main(policy_path: Path = SOURCE_POLICY_PATH) -> None:
+def main(
+    policy_path: Path = SOURCE_POLICY_PATH,
+    processed_output_path: Path = DEFAULT_PROCESSED_OUTPUT_PATH,
+    metadata_output_path: Path = DEFAULT_METADATA_OUTPUT_PATH,
+) -> None:
     policy = load_source_policy(policy_path)
     export_paths = validate_source_exports(policy, SOURCE_DIRS)
     active_training_sources = set(policy["active_training_sources"])
@@ -164,9 +172,10 @@ def main(policy_path: Path = SOURCE_POLICY_PATH) -> None:
     audit["intermediate_counts"]["final_rows_after_dedup"] = len(clean)
     if len(clean) < 100:
         raise SystemExit(f"Cleaned public dataset has {len(clean)} rows; expected at least 100")
-    Path("data/processed").mkdir(parents=True, exist_ok=True)
-    clean.to_csv("data/processed/toxicity_clean.csv", index=False)
-    _write_metadata(clean, source_counts, audit, policy)
+    processed_output_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_output_path.parent.mkdir(parents=True, exist_ok=True)
+    clean.to_csv(processed_output_path, index=False)
+    _write_metadata(clean, source_counts, audit, policy, processed_output_path, metadata_output_path)
 
 
 def load_source_policy(path: Path) -> dict[str, Any]:
@@ -182,6 +191,11 @@ def load_source_policy(path: Path) -> dict[str, Any]:
     unknown = (set(active) | set(deferred)) - set(priority_names)
     if unknown:
         raise SystemExit(f"data_sources.json references unknown sources: {sorted(unknown)}")
+    overlap = set(active) & set(deferred)
+    if overlap:
+        raise SystemExit(f"Sources cannot be both active and deferred: {sorted(overlap)}")
+    if set(active) | set(deferred) != set(priority_names):
+        raise SystemExit("active_training_sources and deferred_sources must cover priority_order exactly")
     return policy
 
 
@@ -224,6 +238,8 @@ def _normalize_enanomapper_exports(directory: Path) -> tuple[pd.DataFrame, dict[
     conditions = _read_matching_export(directory, "*conditions*.csv")
     pchem = _read_matching_export(directory, "*pchem*.csv")
     params = _read_matching_export(directory, "*params*.csv")
+    raw_viability_count = len(viability)
+    viability, viability_audit = _filter_target_viability(viability)
     conditions, condition_audit = _prepare_conditions(conditions)
     pchem_lookup, pchem_audit = _build_pchem_lookup(pchem)
     merged = viability.merge(
@@ -255,13 +271,14 @@ def _normalize_enanomapper_exports(directory: Path) -> tuple[pd.DataFrame, dict[
     audit = {
         "raw_file_row_counts": {
             "eNanoMapper": {
-                "viability": len(viability),
+                "viability": raw_viability_count,
                 "conditions": len(conditions),
                 "pchem": len(pchem),
                 "params": len(params),
             }
         },
         "intermediate_counts": {
+            "enanomapper_viability_target_rows": len(viability),
             "enanomapper_condition_rows_with_supported_dose": int(conditions["dose_ug_ml"].notna().sum()),
             "enanomapper_condition_rows_with_supported_exposure_time": int(conditions["exposure_time_h"].notna().sum()),
             "enanomapper_viability_condition_join_rows": len(merged),
@@ -269,6 +286,7 @@ def _normalize_enanomapper_exports(directory: Path) -> tuple[pd.DataFrame, dict[
             **pchem_audit["intermediate_counts"],
         },
         "drop_filter_counts": {
+            **viability_audit["drop_filter_counts"],
             **condition_audit["drop_filter_counts"],
             **pchem_audit["drop_filter_counts"],
         },
@@ -302,6 +320,25 @@ def _prepare_conditions(conditions: pd.DataFrame) -> tuple[pd.DataFrame, dict[st
         }
     }
     return prepared, audit
+
+
+def _filter_target_viability(viability: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    endpoint_matches = viability["effectendpoint_s"].map(_normalize_target_text).eq(_normalize_target_text(TARGET_VIABILITY_ENDPOINT))
+    unit_matches = viability["unit_s"].map(_normalize_target_text).eq(_normalize_target_text(TARGET_VIABILITY_UNIT))
+    target_rows = endpoint_matches & unit_matches
+    filtered = viability[target_rows].copy()
+    audit = {
+        "drop_filter_counts": {
+            "viability_rows_rejected_by_target_endpoint_or_unit": int((~target_rows).sum()),
+            "viability_rows_rejected_by_target_endpoint": int((~endpoint_matches).sum()),
+            "viability_rows_rejected_by_target_unit": int((endpoint_matches & ~unit_matches).sum()),
+        }
+    }
+    return filtered, audit
+
+
+def _normalize_target_text(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value).strip()).upper()
 
 
 def _first_supported_measurement(
@@ -486,6 +523,8 @@ def _write_metadata(
     source_counts: dict[str, int],
     audit: dict[str, Any],
     policy: dict[str, Any],
+    processed_output_path: Path,
+    metadata_output_path: Path,
 ) -> None:
     training_sources = policy["active_training_sources"]
     deferred_sources = policy["deferred_sources"]
@@ -498,7 +537,7 @@ def _write_metadata(
         "deferred_sources": deferred_sources,
         "source_record_counts": source_counts,
         "record_count": len(frame),
-        "cleaned_output_path": "data/processed/toxicity_clean.csv",
+        "cleaned_output_path": str(processed_output_path),
         "deduplication_key": REQUIRED_COLUMNS,
         "unit_normalization": {
             "particle_size_nm": "nm; eNanoMapper loValue_d with unit_s == nm",
@@ -528,6 +567,12 @@ def _write_metadata(
                 "non-nm PARTICLE SIZE/DIAMETER rows",
             ],
         },
+        "target_endpoint_policy": {
+            "source": "eNanoMapper viability export",
+            "effectendpoint_s": TARGET_VIABILITY_ENDPOINT,
+            "unit_s": TARGET_VIABILITY_UNIT,
+            "normalization": "case-insensitive trim before comparison",
+        },
         "cleaning_audit": audit,
         "unused_raw_exports": {
             "eNanoMapper": {
@@ -540,7 +585,7 @@ def _write_metadata(
         "created_for": "纳米毒性预测智能体第一版可运行原型",
         "required_report_disclosure": "第一版原型当前只使用 eNanoMapper 公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略、caNanoLab/Curated ML 延后接入状态和公开数据局限。",
     }
-    Path("data/processed/toxicity_clean_metadata.json").write_text(
+    metadata_output_path.write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )

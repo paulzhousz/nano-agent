@@ -11,7 +11,7 @@
     "Curated nanotoxicity ML datasets"
   ],
   "source_record_counts": {
-    "eNanoMapper": 474,
+    "eNanoMapper": 288,
     "caNanoLab": 0,
     "Curated nanotoxicity ML datasets": 0
   },
@@ -155,6 +155,12 @@
       "non-nm PARTICLE SIZE/DIAMETER rows"
     ]
   },
+  "target_endpoint_policy": {
+    "source": "eNanoMapper viability export",
+    "effectendpoint_s": "% CELL VIABILITY",
+    "unit_s": "%",
+    "normalization": "case-insensitive trim before comparison"
+  },
   "cleaning_audit": {
     "raw_file_row_counts": {
       "eNanoMapper": {
@@ -165,10 +171,11 @@
       }
     },
     "intermediate_counts": {
+      "enanomapper_viability_target_rows": 288,
       "enanomapper_condition_rows_with_supported_dose": 859,
       "enanomapper_condition_rows_with_supported_exposure_time": 1259,
-      "enanomapper_viability_condition_join_rows": 474,
-      "enanomapper_normalized_rows": 474,
+      "enanomapper_viability_condition_join_rows": 288,
+      "enanomapper_normalized_rows": 288,
       "enanomapper_pchem_size_candidate_rows": 1691,
       "enanomapper_pchem_size_whitelisted_nm_rows": 1673,
       "enanomapper_pchem_zeta_mv_rows": 437,
@@ -176,18 +183,21 @@
       "enanomapper_pchem_size_material_lookup_keys": 419,
       "enanomapper_pchem_zeta_uuid_lookup_keys": 316,
       "enanomapper_pchem_zeta_material_lookup_keys": 258,
-      "combined_normalized_rows_before_filter": 474,
+      "combined_normalized_rows_before_filter": 288,
       "final_rows_before_dedup": 204,
       "final_rows_after_dedup": 184
     },
     "drop_filter_counts": {
+      "viability_rows_rejected_by_target_endpoint_or_unit": 220,
+      "viability_rows_rejected_by_target_endpoint": 220,
+      "viability_rows_rejected_by_target_unit": 0,
       "condition_dose_values_rejected_by_missing_or_unsupported_unit": 406,
       "condition_exposure_time_values_rejected_by_missing_or_unsupported_unit": 225,
       "pchem_size_rows_rejected_by_endpoint_or_unit": 20,
       "pchem_zeta_rows_rejected_by_unit": 0,
-      "final_rows_removed_by_required_values": 234,
+      "final_rows_removed_by_required_values": 48,
       "final_rows_removed_by_numeric_ranges": 36,
-      "final_rows_removed_by_required_values_and_ranges": 270,
+      "final_rows_removed_by_required_values_and_ranges": 84,
       "duplicates_removed": 20
     }
   },
