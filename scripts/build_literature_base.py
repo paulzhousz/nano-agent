@@ -52,10 +52,10 @@ LITERATURE = [
         "title": "caNanoLab: data sharing to expedite the use of nanotechnology in biomedicine",
         "year": 2013,
         "url": "https://cananolab.cancer.gov/",
-        "used_for": ["cancer_nanomedicine_context", "data_source"],
-        "full_summary": "caNanoLab 面向癌症纳米技术和生物医学纳米材料数据共享，覆盖纳米材料表征、体外与体内实验、样品制备以及与癌症应用相关的上下文信息。该资源对本项目的重要性在于提供肿瘤纳米药物筛选的应用背景，并提醒模型输出应服务于候选材料筛选和实验设计，而不是孤立的毒性数值预测。",
+        "used_for": ["cancer_nanomedicine_context", "deferred_source_cross_check"],
+        "full_summary": "caNanoLab 面向癌症纳米技术和生物医学纳米材料数据共享，覆盖纳米材料表征、体外与体内实验、样品制备以及与癌症应用相关的上下文信息。当前阶段用户已决定不把 caNanoLab 接入训练清洗流水线，因此该资源只用于肿瘤纳米药物筛选背景和后续来源交叉核验，不暗示本版 toxicity_clean.csv 已合并 caNanoLab 记录。",
         "method_relevance": "帮助定义智能体报告中的癌症纳米医学场景和实验建议边界。",
-        "data_relevance": "作为后续交叉校验和癌症纳米药物上下文数据源，第一版记录为优先来源之一。",
+        "data_relevance": "作为后续交叉校验和癌症纳米药物上下文数据源保留在优先清单中；本阶段训练数据不接入 caNanoLab CSV。",
         "limitations": "平台页面和数据入口并不总是直接提供与本 schema 完全一致的批量 CSV，需要后续单独清洗。",
         "key_points": [
             "癌症纳米技术数据需要材料表征和生物实验共同描述。",

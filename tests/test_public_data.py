@@ -1,9 +1,23 @@
 import json
+import importlib.util
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from nano_tox_agent.schema import FEATURE_COLUMNS, TARGET_REGRESSION
+
+
+def _load_clean_public_data_module():
+    spec = importlib.util.spec_from_file_location("clean_public_data", Path("scripts/clean_public_data.py"))
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+clean_public_data = _load_clean_public_data_module()
 
 
 EXPECTED_SOURCE_NAMES = ["eNanoMapper", "caNanoLab", "Curated nanotoxicity ML datasets"]
@@ -67,3 +81,62 @@ def test_cleaned_public_data_metadata_matches_frame():
     assert metadata["deferred_sources"] == EXPECTED_DEFERRED_SOURCES
     assert "合成" not in metadata["purpose"]
     assert "演示样例" not in metadata["purpose"]
+
+
+def test_cleaning_script_reads_source_policy_file():
+    policy = clean_public_data.load_source_policy(Path("data/raw/data_sources.json"))
+    assert policy["active_training_sources"] == ["eNanoMapper"]
+    assert policy["deferred_sources"] == EXPECTED_DEFERRED_SOURCES
+
+
+def test_metadata_contains_auditable_cleaning_chain_and_rules():
+    metadata = json.loads(Path("data/processed/toxicity_clean_metadata.json").read_text(encoding="utf-8"))
+    audit = metadata["cleaning_audit"]
+    assert audit["raw_file_row_counts"]["eNanoMapper"]["viability"] == 508
+    assert audit["raw_file_row_counts"]["eNanoMapper"]["conditions"] == 4285
+    assert audit["raw_file_row_counts"]["eNanoMapper"]["pchem"] == 2649
+    assert audit["raw_file_row_counts"]["eNanoMapper"]["params"] == 5621
+    assert audit["intermediate_counts"]["enanomapper_viability_condition_join_rows"] >= metadata["record_count"]
+    assert audit["intermediate_counts"]["enanomapper_normalized_rows"] == metadata["source_record_counts"]["eNanoMapper"]
+    assert audit["drop_filter_counts"]["final_rows_removed_by_required_values_and_ranges"] >= 0
+    assert audit["drop_filter_counts"]["duplicates_removed"] >= 0
+    assert metadata["unit_normalization"]["dose_ug_ml"]["allowed_units"]
+    assert "mg/l" in metadata["unit_normalization"]["dose_ug_ml"]["allowed_units"]
+    assert metadata["unit_normalization"]["exposure_time_h"]["allowed_units"] == ["h", "hr", "hour", "hours"]
+    assert metadata["pchem_size_endpoint_policy"]["endpoint_priority"]
+    assert "median within endpoint bucket" in metadata["pchem_size_endpoint_policy"]["aggregation"].lower()
+    assert "enanomapper_params_2026-06-15.csv" in metadata["unused_raw_exports"]["eNanoMapper"]["files"]
+    assert "保留" in metadata["excluded_record_policy"]
+    assert "无法映射材料组成或细胞类型" not in metadata["excluded_record_policy"]
+
+
+def test_cleaning_rebuilds_committed_processed_outputs():
+    clean_public_data.main()
+    frame = pd.read_csv("data/processed/toxicity_clean.csv")
+    metadata = json.loads(Path("data/processed/toxicity_clean_metadata.json").read_text(encoding="utf-8"))
+    assert list(frame.columns) == EXPECTED_COLUMNS
+    assert len(frame) == metadata["record_count"]
+    assert metadata["source_record_counts"]["eNanoMapper"] >= len(frame)
+
+
+def test_deferred_csv_exports_are_rejected(tmp_path):
+    active_dir = tmp_path / "enanomapper"
+    deferred_dir = tmp_path / "cananolab"
+    other_deferred_dir = tmp_path / "curated_ml"
+    for directory in [active_dir, deferred_dir, other_deferred_dir]:
+        directory.mkdir()
+    (active_dir / "active.csv").write_text("id\n1\n", encoding="utf-8")
+    (deferred_dir / "deferred.csv").write_text("id\n1\n", encoding="utf-8")
+
+    source_dirs = {
+        "eNanoMapper": active_dir,
+        "caNanoLab": deferred_dir,
+        "Curated nanotoxicity ML datasets": other_deferred_dir,
+    }
+    policy = {
+        "active_training_sources": ["eNanoMapper"],
+        "deferred_sources": EXPECTED_DEFERRED_SOURCES,
+    }
+
+    with pytest.raises(SystemExit, match="not active for this stage"):
+        clean_public_data.validate_source_exports(policy, source_dirs)

@@ -15,7 +15,7 @@
     "caNanoLab": 0,
     "Curated nanotoxicity ML datasets": 0
   },
-  "record_count": 209,
+  "record_count": 184,
   "cleaned_output_path": "data/processed/toxicity_clean.csv",
   "deduplication_key": [
     "particle_size_nm",
@@ -33,12 +33,173 @@
   "unit_normalization": {
     "particle_size_nm": "nm; eNanoMapper loValue_d with unit_s == nm",
     "zeta_potential_mv": "mV; eNanoMapper loValue_d with unit_s == mV",
-    "dose_ug_ml": "ug/mL; eNanoMapper Concentration/Dose numeric condition fields",
-    "exposure_time_h": "h; eNanoMapper Time/exposure numeric condition fields",
+    "dose_ug_ml": {
+      "target_unit": "ug/mL",
+      "allowed_units": [
+        "ug/ml",
+        "µg/ml",
+        "μg/ml",
+        "mg/l"
+      ],
+      "conversion": "ug/ml, µg/ml, μg/ml and mg/L are normalized to ug/mL with factor 1.0; area dose, molar, mass-only, and unknown units are excluded.",
+      "source_columns": [
+        {
+          "value_column": "Concentration_d",
+          "unit_column": "Concentration_UNIT_s"
+        },
+        {
+          "value_column": "Dose_d",
+          "unit_column": "Dose_UNIT_s"
+        },
+        {
+          "value_column": "Doses/concentrations_d",
+          "unit_column": "Doses/concentrations_UNIT_s"
+        },
+        {
+          "value_column": "_CONDITION_Dose_d",
+          "unit_column": "_CONDITION_Dose_UNIT_s"
+        },
+        {
+          "value_column": "_CONDITION_concentration_d",
+          "unit_column": "_CONDITION_concentration_UNIT_s"
+        },
+        {
+          "value_column": "Concentration in culture medium_d",
+          "unit_column": "Concentration in culture medium_UNIT_s"
+        },
+        {
+          "value_column": "concentration_d",
+          "unit_column": "concentration_UNIT_s"
+        }
+      ]
+    },
+    "exposure_time_h": {
+      "target_unit": "h",
+      "allowed_units": [
+        "h",
+        "hr",
+        "hour",
+        "hours"
+      ],
+      "conversion": "Only explicit hour units are accepted with factor 1.0; missing, minute-only, and unknown units are excluded.",
+      "source_columns": [
+        {
+          "value_column": "Time point_d",
+          "unit_column": "Time point_UNIT_s"
+        },
+        {
+          "value_column": "Time_d",
+          "unit_column": "Time_UNIT_s"
+        },
+        {
+          "value_column": "E.exposure_time_d",
+          "unit_column": "E.exposure_time_UNIT_s"
+        },
+        {
+          "value_column": "E.EXPOSURE_TIME_d",
+          "unit_column": "E.EXPOSURE_TIME_UNIT_s"
+        },
+        {
+          "value_column": "_CONDITION_exposure_time_d",
+          "unit_column": "_CONDITION_exposure_time_UNIT_s"
+        },
+        {
+          "value_column": "Incubation Time_d",
+          "unit_column": null
+        },
+        {
+          "value_column": "Incubation time_d",
+          "unit_column": null
+        }
+      ]
+    },
     "cell_viability_percent": "%; eNanoMapper % CELL VIABILITY records",
     "pchem_alignment": "优先按 s_uuid 精确匹配；同一公开材料编码存在物化记录时，按材料编码中位数补齐粒径和 zeta。"
   },
-  "excluded_record_policy": "删除缺失目标值、缺失剂量或暴露时间、无法从公开物化记录匹配粒径或 zeta、无法映射材料组成或细胞类型的记录；删除 cell viability 超出 0-100 的记录。",
+  "pchem_size_endpoint_policy": {
+    "endpoint_priority": [
+      {
+        "bucket": "primary_core_particle_size",
+        "endpoints": [
+          "PRIMARY_SIZE",
+          "PRIMARY PARTICLE SIZE",
+          "PRIMARY SIZE 1ST DIMENSION",
+          "PRIMARY SIZE 2ND DIMENSION",
+          "CORE SIZE",
+          "PARTICLE SIZE",
+          "DIAMETER"
+        ]
+      },
+      {
+        "bucket": "hydrodynamic_size",
+        "endpoints": [
+          "HYDRODYNAMIC_SIZE",
+          "Z-AVERAGE HYDRODYNAMIC DIAMETER",
+          "NUMBER MEAN HYDRODYNAMIC DIAMETER",
+          "INTENSITY MEAN HYDRODYNAMIC DIAMETER",
+          "VOLUME MEAN HYDRODYNAMIC DIAMETER"
+        ]
+      },
+      {
+        "bucket": "in_situ_size",
+        "endpoints": [
+          "SIZE IN SITU"
+        ]
+      }
+    ],
+    "unit_filter": "Only nm pchem rows are eligible for particle_size_nm.",
+    "aggregation": "Median within endpoint bucket and s_uuid first; if no s_uuid match exists, median within endpoint bucket and normalized public material key is used.",
+    "excluded_endpoint_examples": [
+      "PARTICLE SIZE DISTRIBUTION:*",
+      "INNER_DIAMETER",
+      "non-nm PARTICLE SIZE/DIAMETER rows"
+    ]
+  },
+  "cleaning_audit": {
+    "raw_file_row_counts": {
+      "eNanoMapper": {
+        "viability": 508,
+        "conditions": 4285,
+        "pchem": 2649,
+        "params": 5621
+      }
+    },
+    "intermediate_counts": {
+      "enanomapper_condition_rows_with_supported_dose": 859,
+      "enanomapper_condition_rows_with_supported_exposure_time": 1259,
+      "enanomapper_viability_condition_join_rows": 474,
+      "enanomapper_normalized_rows": 474,
+      "enanomapper_pchem_size_candidate_rows": 1691,
+      "enanomapper_pchem_size_whitelisted_nm_rows": 1673,
+      "enanomapper_pchem_zeta_mv_rows": 437,
+      "enanomapper_pchem_size_uuid_lookup_keys": 539,
+      "enanomapper_pchem_size_material_lookup_keys": 419,
+      "enanomapper_pchem_zeta_uuid_lookup_keys": 316,
+      "enanomapper_pchem_zeta_material_lookup_keys": 258,
+      "combined_normalized_rows_before_filter": 474,
+      "final_rows_before_dedup": 204,
+      "final_rows_after_dedup": 184
+    },
+    "drop_filter_counts": {
+      "condition_dose_values_rejected_by_missing_or_unsupported_unit": 406,
+      "condition_exposure_time_values_rejected_by_missing_or_unsupported_unit": 225,
+      "pchem_size_rows_rejected_by_endpoint_or_unit": 20,
+      "pchem_zeta_rows_rejected_by_unit": 0,
+      "final_rows_removed_by_required_values": 234,
+      "final_rows_removed_by_numeric_ranges": 36,
+      "final_rows_removed_by_required_values_and_ranges": 270,
+      "duplicates_removed": 20
+    }
+  },
+  "unused_raw_exports": {
+    "eNanoMapper": {
+      "files": [
+        "enanomapper_params_2026-06-15.csv"
+      ],
+      "reason": "保留原始 params 导出以便审计条件字段来源；当前规范化字段来自 viability、conditions 和 pchem 导出，params 不参与训练表合并。"
+    }
+  },
+  "excluded_record_policy": "删除缺失目标值、缺失剂量或暴露时间、无法从公开物化记录匹配粒径或 zeta、数值范围无效或重复的记录；保留无法从 guidance 明确映射的细胞/物种/组织上下文，并以 unreported_cell、unreported_species、unreported_tissue 标记。",
   "scientific_use_limit": "该清洗数据来自 eNanoMapper 公开 Solr 导出并可用于第一版原型训练；正式科学结论仍需复核原始实验条件、剂量单位、终点定义和文献上下文。",
   "created_for": "纳米毒性预测智能体第一版可运行原型",
   "required_report_disclosure": "第一版原型当前只使用 eNanoMapper 公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略、caNanoLab/Curated ML 延后接入状态和公开数据局限。"

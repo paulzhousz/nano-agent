@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -23,8 +24,7 @@ SOURCE_DIRS = {
     "caNanoLab": Path("data/raw/source_exports/cananolab"),
     "Curated nanotoxicity ML datasets": Path("data/raw/source_exports/curated_ml"),
 }
-ACTIVE_TRAINING_SOURCES = {"eNanoMapper"}
-DEFERRED_SOURCES = ["caNanoLab", "Curated nanotoxicity ML datasets"]
+SOURCE_POLICY_PATH = Path("data/raw/data_sources.json")
 
 COLUMN_ALIASES = {
     "particle_size_nm": ["particle_size_nm", "size_nm", "diameter_nm", "primary_size_nm"],
@@ -56,41 +56,154 @@ TEXT_COLUMNS = [
     "assay_method",
 ]
 
+DOSE_MEASUREMENTS = [
+    {"value_column": "Concentration_d", "unit_column": "Concentration_UNIT_s"},
+    {"value_column": "Dose_d", "unit_column": "Dose_UNIT_s"},
+    {"value_column": "Doses/concentrations_d", "unit_column": "Doses/concentrations_UNIT_s"},
+    {"value_column": "_CONDITION_Dose_d", "unit_column": "_CONDITION_Dose_UNIT_s"},
+    {"value_column": "_CONDITION_concentration_d", "unit_column": "_CONDITION_concentration_UNIT_s"},
+    {"value_column": "Concentration in culture medium_d", "unit_column": "Concentration in culture medium_UNIT_s"},
+    {"value_column": "concentration_d", "unit_column": "concentration_UNIT_s"},
+]
+DOSE_UNIT_FACTORS_TO_UG_ML = {
+    "ug/ml": 1.0,
+    "mg/l": 1.0,
+}
+TIME_MEASUREMENTS = [
+    {"value_column": "Time point_d", "unit_column": "Time point_UNIT_s"},
+    {"value_column": "Time_d", "unit_column": "Time_UNIT_s"},
+    {"value_column": "E.exposure_time_d", "unit_column": "E.exposure_time_UNIT_s"},
+    {"value_column": "E.EXPOSURE_TIME_d", "unit_column": "E.EXPOSURE_TIME_UNIT_s"},
+    {"value_column": "_CONDITION_exposure_time_d", "unit_column": "_CONDITION_exposure_time_UNIT_s"},
+    {"value_column": "Incubation Time_d", "unit_column": None},
+    {"value_column": "Incubation time_d", "unit_column": None},
+]
+TIME_UNIT_FACTORS_TO_HOURS = {
+    "h": 1.0,
+    "hr": 1.0,
+    "hour": 1.0,
+    "hours": 1.0,
+}
 
-def main() -> None:
+SIZE_ENDPOINT_BUCKETS = [
+    {
+        "bucket": "primary_core_particle_size",
+        "endpoints": [
+            "PRIMARY_SIZE",
+            "PRIMARY PARTICLE SIZE",
+            "PRIMARY SIZE 1ST DIMENSION",
+            "PRIMARY SIZE 2ND DIMENSION",
+            "CORE SIZE",
+            "PARTICLE SIZE",
+            "DIAMETER",
+        ],
+    },
+    {
+        "bucket": "hydrodynamic_size",
+        "endpoints": [
+            "HYDRODYNAMIC_SIZE",
+            "Z-AVERAGE HYDRODYNAMIC DIAMETER",
+            "NUMBER MEAN HYDRODYNAMIC DIAMETER",
+            "INTENSITY MEAN HYDRODYNAMIC DIAMETER",
+            "VOLUME MEAN HYDRODYNAMIC DIAMETER",
+        ],
+    },
+    {
+        "bucket": "in_situ_size",
+        "endpoints": ["SIZE IN SITU"],
+    },
+]
+SIZE_ENDPOINT_TO_BUCKET = {
+    endpoint: bucket["bucket"]
+    for bucket in SIZE_ENDPOINT_BUCKETS
+    for endpoint in bucket["endpoints"]
+}
+SIZE_BUCKET_PRIORITY = {
+    bucket["bucket"]: priority
+    for priority, bucket in enumerate(SIZE_ENDPOINT_BUCKETS)
+}
+
+
+def main(policy_path: Path = SOURCE_POLICY_PATH) -> None:
+    policy = load_source_policy(policy_path)
+    export_paths = validate_source_exports(policy, SOURCE_DIRS)
+    active_training_sources = set(policy["active_training_sources"])
     frames: list[pd.DataFrame] = []
     source_counts: dict[str, int] = {}
+    audit: dict[str, Any] = {
+        "raw_file_row_counts": {},
+        "intermediate_counts": {},
+        "drop_filter_counts": {},
+    }
     for source_name, directory in SOURCE_DIRS.items():
-        csv_paths = sorted(directory.glob("*.csv"))
-        if not csv_paths:
-            if source_name in ACTIVE_TRAINING_SOURCES:
-                raise SystemExit(f"Active training source {source_name} has no CSV exports in {directory}")
+        csv_paths = export_paths[source_name]
+        if source_name not in active_training_sources:
             source_counts[source_name] = 0
             continue
-        if source_name not in ACTIVE_TRAINING_SOURCES:
-            raise SystemExit(
-                f"Source {source_name} has CSV exports but is not active for this stage; "
-                "add it to ACTIVE_TRAINING_SOURCES before merging it into training data"
-            )
         if source_name == "eNanoMapper":
-            normalized = _normalize_enanomapper_exports(directory)
+            normalized, source_audit = _normalize_enanomapper_exports(directory)
+            _merge_audit(audit, source_audit)
         else:
             source_frames = [_normalize_columns(_read_source_file(path)) for path in csv_paths]
             normalized = pd.concat(source_frames, ignore_index=True) if source_frames else pd.DataFrame(columns=REQUIRED_COLUMNS)
+            audit["raw_file_row_counts"][source_name] = {path.name: len(_read_source_file(path)) for path in csv_paths}
         source_counts[source_name] = len(normalized)
         if not normalized.empty:
             frames.append(normalized)
     if not frames:
         raise SystemExit("No public source CSV files found under data/raw/source_exports")
 
-    clean = pd.concat(frames, ignore_index=True)
-    clean = _coerce_and_filter(clean)
+    combined = pd.concat(frames, ignore_index=True)
+    audit["intermediate_counts"]["combined_normalized_rows_before_filter"] = len(combined)
+    clean, filter_counts = _coerce_and_filter(combined)
+    audit["drop_filter_counts"].update(filter_counts)
+    rows_before_dedup = len(clean)
     clean = clean.drop_duplicates().reset_index(drop=True)
+    audit["drop_filter_counts"]["duplicates_removed"] = rows_before_dedup - len(clean)
+    audit["intermediate_counts"]["final_rows_before_dedup"] = rows_before_dedup
+    audit["intermediate_counts"]["final_rows_after_dedup"] = len(clean)
     if len(clean) < 100:
         raise SystemExit(f"Cleaned public dataset has {len(clean)} rows; expected at least 100")
     Path("data/processed").mkdir(parents=True, exist_ok=True)
     clean.to_csv("data/processed/toxicity_clean.csv", index=False)
-    _write_metadata(clean, source_counts)
+    _write_metadata(clean, source_counts, audit, policy)
+
+
+def load_source_policy(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        policy = json.load(handle)
+    priority_names = [entry["name"] for entry in policy.get("priority_order", [])]
+    active = policy.get("active_training_sources")
+    deferred = policy.get("deferred_sources")
+    if not isinstance(active, list) or not active:
+        raise SystemExit("data_sources.json must define non-empty active_training_sources")
+    if not isinstance(deferred, list):
+        raise SystemExit("data_sources.json must define deferred_sources")
+    unknown = (set(active) | set(deferred)) - set(priority_names)
+    if unknown:
+        raise SystemExit(f"data_sources.json references unknown sources: {sorted(unknown)}")
+    return policy
+
+
+def validate_source_exports(policy: dict[str, Any], source_dirs: dict[str, Path]) -> dict[str, list[Path]]:
+    active_training_sources = set(policy["active_training_sources"])
+    export_paths: dict[str, list[Path]] = {}
+    for source_name, directory in source_dirs.items():
+        csv_paths = sorted(directory.glob("*.csv"))
+        export_paths[source_name] = csv_paths
+        if source_name in active_training_sources and not csv_paths:
+            raise SystemExit(f"Active training source {source_name} has no CSV exports in {directory}")
+        if source_name not in active_training_sources and csv_paths:
+            raise SystemExit(
+                f"Source {source_name} has CSV exports but is not active for this stage; "
+                "update data/raw/data_sources.json active_training_sources before merging it into training data"
+            )
+    return export_paths
+
+
+def _merge_audit(target: dict[str, Any], source: dict[str, Any]) -> None:
+    for section, values in source.items():
+        target.setdefault(section, {}).update(values)
 
 
 def _read_source_file(path: Path) -> pd.DataFrame:
@@ -106,12 +219,13 @@ def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
     return output[REQUIRED_COLUMNS]
 
 
-def _normalize_enanomapper_exports(directory: Path) -> pd.DataFrame:
+def _normalize_enanomapper_exports(directory: Path) -> tuple[pd.DataFrame, dict[str, Any]]:
     viability = _read_matching_export(directory, "*viability*.csv")
     conditions = _read_matching_export(directory, "*conditions*.csv")
     pchem = _read_matching_export(directory, "*pchem*.csv")
-    conditions = _prepare_conditions(conditions)
-    pchem_lookup = _build_pchem_lookup(pchem)
+    params = _read_matching_export(directory, "*params*.csv")
+    conditions, condition_audit = _prepare_conditions(conditions)
+    pchem_lookup, pchem_audit = _build_pchem_lookup(pchem)
     merged = viability.merge(
         conditions[["effectid_hs", "dose_ug_ml", "exposure_time_h"]],
         left_on="id",
@@ -138,7 +252,28 @@ def _normalize_enanomapper_exports(directory: Path) -> pd.DataFrame:
             "cell_viability_percent": merged["loValue_d"],
         }
     )
-    return output[REQUIRED_COLUMNS]
+    audit = {
+        "raw_file_row_counts": {
+            "eNanoMapper": {
+                "viability": len(viability),
+                "conditions": len(conditions),
+                "pchem": len(pchem),
+                "params": len(params),
+            }
+        },
+        "intermediate_counts": {
+            "enanomapper_condition_rows_with_supported_dose": int(conditions["dose_ug_ml"].notna().sum()),
+            "enanomapper_condition_rows_with_supported_exposure_time": int(conditions["exposure_time_h"].notna().sum()),
+            "enanomapper_viability_condition_join_rows": len(merged),
+            "enanomapper_normalized_rows": len(output),
+            **pchem_audit["intermediate_counts"],
+        },
+        "drop_filter_counts": {
+            **condition_audit["drop_filter_counts"],
+            **pchem_audit["drop_filter_counts"],
+        },
+    }
+    return output[REQUIRED_COLUMNS], audit
 
 
 def _read_matching_export(directory: Path, pattern: str) -> pd.DataFrame:
@@ -148,57 +283,107 @@ def _read_matching_export(directory: Path, pattern: str) -> pd.DataFrame:
     return pd.read_csv(paths[0], low_memory=False)
 
 
-def _prepare_conditions(conditions: pd.DataFrame) -> pd.DataFrame:
-    dose_columns = [
-        "Concentration_d",
-        "Dose_d",
-        "Doses/concentrations_d",
-        "_CONDITION_Dose_d",
-        "_CONDITION_concentration_d",
-        "Concentration in culture medium_d",
-        "concentration_d",
-    ]
-    time_columns = [
-        "Time point_d",
-        "Time_d",
-        "E.exposure_time_d",
-        "E.EXPOSURE_TIME_d",
-        "_CONDITION_exposure_time_d",
-        "Incubation Time_d",
-        "Incubation time_d",
-    ]
+def _prepare_conditions(conditions: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     prepared = conditions.copy()
-    prepared["dose_ug_ml"] = _first_numeric(prepared, dose_columns)
-    prepared["exposure_time_h"] = _first_numeric(prepared, time_columns)
-    return prepared
+    prepared["dose_ug_ml"], dose_audit = _first_supported_measurement(
+        prepared,
+        DOSE_MEASUREMENTS,
+        DOSE_UNIT_FACTORS_TO_UG_ML,
+    )
+    prepared["exposure_time_h"], time_audit = _first_supported_measurement(
+        prepared,
+        TIME_MEASUREMENTS,
+        TIME_UNIT_FACTORS_TO_HOURS,
+    )
+    audit = {
+        "drop_filter_counts": {
+            "condition_dose_values_rejected_by_missing_or_unsupported_unit": dose_audit["rejected_value_rows"],
+            "condition_exposure_time_values_rejected_by_missing_or_unsupported_unit": time_audit["rejected_value_rows"],
+        }
+    }
+    return prepared, audit
 
 
-def _first_numeric(frame: pd.DataFrame, columns: list[str]) -> pd.Series:
-    existing = [column for column in columns if column in frame.columns]
-    if not existing:
-        return pd.Series(pd.NA, index=frame.index)
-    numeric = frame[existing].apply(pd.to_numeric, errors="coerce")
-    return numeric.bfill(axis=1).iloc[:, 0]
+def _first_supported_measurement(
+    frame: pd.DataFrame,
+    measurements: list[dict[str, str | None]],
+    unit_factors: dict[str, float],
+) -> tuple[pd.Series, dict[str, Any]]:
+    converted_columns: list[pd.Series] = []
+    rejected_value_rows = 0
+    for measurement in measurements:
+        value_column = measurement["value_column"]
+        unit_column = measurement["unit_column"]
+        if value_column not in frame.columns:
+            continue
+        values = pd.to_numeric(frame[value_column], errors="coerce")
+        has_value = values.notna()
+        if unit_column and unit_column in frame.columns:
+            units = frame[unit_column].map(_normalize_unit)
+            factors = units.map(unit_factors)
+        else:
+            factors = pd.Series(pd.NA, index=frame.index, dtype="Float64")
+        supported = has_value & factors.notna()
+        rejected_value_rows += int((has_value & ~supported).sum())
+        converted_columns.append((values * pd.to_numeric(factors, errors="coerce")).where(supported))
+    if not converted_columns:
+        return pd.Series(pd.NA, index=frame.index), {"rejected_value_rows": 0}
+    converted = pd.concat(converted_columns, axis=1)
+    return converted.bfill(axis=1).iloc[:, 0], {"rejected_value_rows": rejected_value_rows}
 
 
-def _build_pchem_lookup(pchem: pd.DataFrame) -> dict[str, pd.Series]:
+def _normalize_unit(value: object) -> str:
+    text = str(value).strip().lower()
+    text = text.replace("µ", "u").replace("μ", "u")
+    text = re.sub(r"\s+", "", text)
+    return text
+
+
+def _build_pchem_lookup(pchem: pd.DataFrame) -> tuple[dict[str, pd.Series], dict[str, Any]]:
     prepared = pchem.copy()
     prepared["effect_key"] = prepared["effectendpoint_s"].astype("string").str.upper()
     prepared["unit_key"] = prepared["unit_s"].astype("string").str.lower()
     prepared["loValue_d"] = pd.to_numeric(prepared["loValue_d"], errors="coerce")
     prepared["material_key"] = prepared["publicname_s"].fillna(prepared["name_s"]).map(_material_key)
-    has_size_endpoint = prepared["effect_key"].str.contains("SIZE|DIAMETER", regex=True, na=False).fillna(False)
+    prepared["size_bucket"] = prepared["effect_key"].map(SIZE_ENDPOINT_TO_BUCKET)
+    has_size_endpoint = prepared["size_bucket"].notna()
     has_zeta_endpoint = prepared["effect_key"].str.contains("ZETA", regex=True, na=False).fillna(False)
     has_nm_unit = prepared["unit_key"].eq("nm").fillna(False)
     has_mv_unit = prepared["unit_key"].eq("mv").fillna(False)
     size_rows = prepared[has_size_endpoint & has_nm_unit & prepared["loValue_d"].gt(0)]
     zeta_rows = prepared[has_zeta_endpoint & has_mv_unit & prepared["loValue_d"].notna()]
-    return {
-        "size_by_uuid": size_rows.groupby("s_uuid_s")["loValue_d"].median(),
+    lookup = {
+        "size_by_uuid": _preferred_size_median(size_rows, "s_uuid_s"),
         "zeta_by_uuid": zeta_rows.groupby("s_uuid_s")["loValue_d"].median(),
-        "size_by_material_key": size_rows.groupby("material_key")["loValue_d"].median(),
+        "size_by_material_key": _preferred_size_median(size_rows, "material_key"),
         "zeta_by_material_key": zeta_rows.groupby("material_key")["loValue_d"].median(),
     }
+    audit = {
+        "intermediate_counts": {
+            "enanomapper_pchem_size_candidate_rows": int(has_size_endpoint.sum()),
+            "enanomapper_pchem_size_whitelisted_nm_rows": len(size_rows),
+            "enanomapper_pchem_zeta_mv_rows": len(zeta_rows),
+            "enanomapper_pchem_size_uuid_lookup_keys": len(lookup["size_by_uuid"]),
+            "enanomapper_pchem_size_material_lookup_keys": len(lookup["size_by_material_key"]),
+            "enanomapper_pchem_zeta_uuid_lookup_keys": len(lookup["zeta_by_uuid"]),
+            "enanomapper_pchem_zeta_material_lookup_keys": len(lookup["zeta_by_material_key"]),
+        },
+        "drop_filter_counts": {
+            "pchem_size_rows_rejected_by_endpoint_or_unit": int((prepared["effect_key"].str.contains("SIZE|DIAMETER", regex=True, na=False).fillna(False) & ~has_size_endpoint).sum())
+            + int((has_size_endpoint & ~has_nm_unit).sum()),
+            "pchem_zeta_rows_rejected_by_unit": int((has_zeta_endpoint & ~has_mv_unit).sum()),
+        },
+    }
+    return lookup, audit
+
+
+def _preferred_size_median(rows: pd.DataFrame, key_column: str) -> pd.Series:
+    if rows.empty:
+        return pd.Series(dtype="float64")
+    grouped = rows.groupby([key_column, "size_bucket"], dropna=True)["loValue_d"].median().reset_index()
+    grouped["bucket_priority"] = grouped["size_bucket"].map(SIZE_BUCKET_PRIORITY)
+    selected = grouped.sort_values([key_column, "bucket_priority"]).drop_duplicates(key_column)
+    return selected.set_index(key_column)["loValue_d"]
 
 
 def _material_key(value: object) -> str:
@@ -272,30 +457,45 @@ def _assay_method(value: object) -> str:
     return re.sub(r"\s+", " ", text).strip() or "cell_viability_assay"
 
 
-def _coerce_and_filter(frame: pd.DataFrame) -> pd.DataFrame:
+def _coerce_and_filter(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int]]:
     clean = frame.copy()
     for column in NUMERIC_COLUMNS:
         clean[column] = pd.to_numeric(clean[column], errors="coerce")
     for column in TEXT_COLUMNS:
         clean[column] = clean[column].astype("string").str.strip().str.replace(r"\s+", "_", regex=True)
+    rows_before_required = len(clean)
     clean = clean.dropna(subset=REQUIRED_COLUMNS)
+    rows_removed_by_required_values = rows_before_required - len(clean)
+    rows_before_ranges = len(clean)
     clean = clean[
         (clean["particle_size_nm"] > 0)
         & (clean["dose_ug_ml"] >= 0)
         & (clean["exposure_time_h"] > 0)
         & (clean["cell_viability_percent"].between(0, 100))
     ]
-    return clean[REQUIRED_COLUMNS]
+    rows_removed_by_ranges = rows_before_ranges - len(clean)
+    return clean[REQUIRED_COLUMNS], {
+        "final_rows_removed_by_required_values": rows_removed_by_required_values,
+        "final_rows_removed_by_numeric_ranges": rows_removed_by_ranges,
+        "final_rows_removed_by_required_values_and_ranges": rows_removed_by_required_values + rows_removed_by_ranges,
+    }
 
 
-def _write_metadata(frame: pd.DataFrame, source_counts: dict[str, int]) -> None:
+def _write_metadata(
+    frame: pd.DataFrame,
+    source_counts: dict[str, int],
+    audit: dict[str, Any],
+    policy: dict[str, Any],
+) -> None:
+    training_sources = policy["active_training_sources"]
+    deferred_sources = policy["deferred_sources"]
     metadata = {
         "dataset_name": "toxicity_clean.csv",
         "dataset_type": "cleaned_public_nanotoxicity_dataset",
         "purpose": "第一版模型训练、评估和 UI 预测使用的 eNanoMapper 公开数据清洗结果。",
         "source_policy_file": "data/raw/data_sources.json",
-        "training_sources": sorted(ACTIVE_TRAINING_SOURCES),
-        "deferred_sources": DEFERRED_SOURCES,
+        "training_sources": training_sources,
+        "deferred_sources": deferred_sources,
         "source_record_counts": source_counts,
         "record_count": len(frame),
         "cleaned_output_path": "data/processed/toxicity_clean.csv",
@@ -303,12 +503,39 @@ def _write_metadata(frame: pd.DataFrame, source_counts: dict[str, int]) -> None:
         "unit_normalization": {
             "particle_size_nm": "nm; eNanoMapper loValue_d with unit_s == nm",
             "zeta_potential_mv": "mV; eNanoMapper loValue_d with unit_s == mV",
-            "dose_ug_ml": "ug/mL; eNanoMapper Concentration/Dose numeric condition fields",
-            "exposure_time_h": "h; eNanoMapper Time/exposure numeric condition fields",
+            "dose_ug_ml": {
+                "target_unit": "ug/mL",
+                "allowed_units": ["ug/ml", "µg/ml", "μg/ml", "mg/l"],
+                "conversion": "ug/ml, µg/ml, μg/ml and mg/L are normalized to ug/mL with factor 1.0; area dose, molar, mass-only, and unknown units are excluded.",
+                "source_columns": DOSE_MEASUREMENTS,
+            },
+            "exposure_time_h": {
+                "target_unit": "h",
+                "allowed_units": ["h", "hr", "hour", "hours"],
+                "conversion": "Only explicit hour units are accepted with factor 1.0; missing, minute-only, and unknown units are excluded.",
+                "source_columns": TIME_MEASUREMENTS,
+            },
             "cell_viability_percent": "%; eNanoMapper % CELL VIABILITY records",
             "pchem_alignment": "优先按 s_uuid 精确匹配；同一公开材料编码存在物化记录时，按材料编码中位数补齐粒径和 zeta。",
         },
-        "excluded_record_policy": "删除缺失目标值、缺失剂量或暴露时间、无法从公开物化记录匹配粒径或 zeta、无法映射材料组成或细胞类型的记录；删除 cell viability 超出 0-100 的记录。",
+        "pchem_size_endpoint_policy": {
+            "endpoint_priority": SIZE_ENDPOINT_BUCKETS,
+            "unit_filter": "Only nm pchem rows are eligible for particle_size_nm.",
+            "aggregation": "Median within endpoint bucket and s_uuid first; if no s_uuid match exists, median within endpoint bucket and normalized public material key is used.",
+            "excluded_endpoint_examples": [
+                "PARTICLE SIZE DISTRIBUTION:*",
+                "INNER_DIAMETER",
+                "non-nm PARTICLE SIZE/DIAMETER rows",
+            ],
+        },
+        "cleaning_audit": audit,
+        "unused_raw_exports": {
+            "eNanoMapper": {
+                "files": ["enanomapper_params_2026-06-15.csv"],
+                "reason": "保留原始 params 导出以便审计条件字段来源；当前规范化字段来自 viability、conditions 和 pchem 导出，params 不参与训练表合并。",
+            }
+        },
+        "excluded_record_policy": "删除缺失目标值、缺失剂量或暴露时间、无法从公开物化记录匹配粒径或 zeta、数值范围无效或重复的记录；保留无法从 guidance 明确映射的细胞/物种/组织上下文，并以 unreported_cell、unreported_species、unreported_tissue 标记。",
         "scientific_use_limit": "该清洗数据来自 eNanoMapper 公开 Solr 导出并可用于第一版原型训练；正式科学结论仍需复核原始实验条件、剂量单位、终点定义和文献上下文。",
         "created_for": "纳米毒性预测智能体第一版可运行原型",
         "required_report_disclosure": "第一版原型当前只使用 eNanoMapper 公开数据清洗结果训练模型；报告中必须说明数据来源、清洗规则、记录数量、物化字段匹配策略、caNanoLab/Curated ML 延后接入状态和公开数据局限。",

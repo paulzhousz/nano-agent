@@ -35,6 +35,18 @@ def test_select_literature_filters_by_use():
     assert "Smart Drug-Delivery Systems for Cancer Nanotherapy" not in titles
 
 
+def test_cananolab_literature_is_deferred_context_not_training_source():
+    entries = load_literature(Path("literature/literature_base.json"))
+    entry = next(
+        item
+        for item in entries
+        if item["title"] == "caNanoLab: data sharing to expedite the use of nanotechnology in biomedicine"
+    )
+    assert "data_source" not in entry["used_for"]
+    assert "deferred_source_cross_check" in entry["used_for"]
+    assert "后续" in entry["data_relevance"]
+
+
 def test_literature_entries_have_traceable_urls():
     entries = load_literature(Path("literature/literature_base.json"))
     for entry in entries:
