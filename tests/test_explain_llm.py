@@ -41,6 +41,10 @@ def test_build_explanation_includes_key_chinese_fields_and_literature_title():
 
     assert "预测毒性等级：高毒" in explanation
     assert "预测细胞活力：42.0%" in explanation
+    assert "剂量 50.0 ug/mL" in explanation
+    assert "粒径 90.0 nm" in explanation
+    assert "Zeta 电位 -8.0 mV" in explanation
+    assert "理化性质、实验条件和细胞类型综合判断" in explanation
     assert "建议降低暴露剂量" in explanation
     assert "Predicting Cytotoxicity of Nanoparticles" in explanation
 
@@ -100,6 +104,120 @@ def test_generate_llm_response_returns_none_on_bad_response(monkeypatch):
 
     with patch("urllib.request.urlopen", return_value=FakeResponse()):
         assert generate_llm_response("explain this") is None
+
+
+def test_generate_llm_response_returns_none_on_non_utf8_response(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b"\xff\xfe\xfd"
+
+    with patch("urllib.request.urlopen", return_value=FakeResponse()):
+        assert generate_llm_response("explain this") is None
+
+
+@pytest.mark.parametrize(
+    "rewritten",
+    [
+        "\n".join(
+            [
+                "预测毒性等级：高毒",
+                "预测细胞活力：42.0%",
+                "解释：保留了细胞活力但漏掉了模型置信度。",
+            ]
+        ),
+        "\n".join(
+            [
+                "预测毒性等级：低毒",
+                "预测细胞活力：42.0%",
+                "模型置信度：91.0%",
+                "解释：改坏了毒性等级。",
+            ]
+        ),
+        "\n".join(
+            [
+                "预测毒性等级：高毒",
+                "预测细胞活力：55.0%",
+                "模型置信度：91.0%",
+                "解释：改坏了细胞活力。",
+            ]
+        ),
+    ],
+)
+def test_generate_llm_response_returns_none_when_key_conclusion_lines_missing_or_changed(
+    monkeypatch, rewritten
+):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+    original_explanation = "\n".join(
+        [
+            "预测毒性等级：高毒",
+            "预测细胞活力：42.0%",
+            "模型置信度：91.0%",
+            "解释：原始解释正文。",
+        ]
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": rewritten}}]}
+            ).encode("utf-8")
+
+    with patch("urllib.request.urlopen", return_value=FakeResponse()):
+        assert generate_llm_response(original_explanation) is None
+
+
+def test_generate_llm_response_accepts_rewrite_when_key_conclusion_lines_preserved(
+    monkeypatch,
+):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+    original_explanation = "\n".join(
+        [
+            "预测毒性等级：高毒",
+            "预测细胞活力：42.0%",
+            "模型置信度：91.0%",
+            "解释：原始解释正文。",
+        ]
+    )
+    rewritten = "\n".join(
+        [
+            "预测毒性等级：高毒",
+            "预测细胞活力：42.0%",
+            "模型置信度：91.0%",
+            "解释：这是更流畅的改写，但保留关键结论。",
+        ]
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": rewritten}}]}
+            ).encode("utf-8")
+
+    with patch("urllib.request.urlopen", return_value=FakeResponse()):
+        assert generate_llm_response(original_explanation) == rewritten
 
 
 @pytest.mark.parametrize(

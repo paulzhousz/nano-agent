@@ -8,6 +8,29 @@ from urllib.error import URLError
 import urllib.request
 
 SYSTEM_PROMPT = "请用清晰中文改写模型拥有的毒性预测解释。不要改变毒性等级、细胞活力、置信度或引用依据。"
+PROTECTED_PREFIXES = ("预测毒性等级：", "预测细胞活力：", "模型置信度：")
+
+
+def _extract_protected_lines(text: str) -> dict[str, str]:
+    protected_lines: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        for prefix in PROTECTED_PREFIXES:
+            if line.startswith(prefix):
+                protected_lines[prefix] = line
+    return protected_lines
+
+
+def _preserves_core_conclusions(original: str, rewritten: str) -> bool:
+    original_lines = _extract_protected_lines(original)
+    rewritten_lines = _extract_protected_lines(rewritten)
+    for prefix in PROTECTED_PREFIXES:
+        original_line = original_lines.get(prefix)
+        if original_line is None:
+            continue
+        if rewritten_lines.get(prefix) != original_line:
+            return False
+    return True
 
 
 def generate_llm_response(prompt: str) -> str | None:
@@ -38,7 +61,7 @@ def generate_llm_response(prompt: str) -> str | None:
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             data: Any = json.loads(response.read().decode("utf-8"))
-    except (OSError, URLError, TimeoutError, JSONDecodeError):
+    except (OSError, URLError, TimeoutError, UnicodeDecodeError, JSONDecodeError):
         return None
 
     if not isinstance(data, dict):
@@ -59,6 +82,6 @@ def generate_llm_response(prompt: str) -> str | None:
     content = message.get("content")
     if isinstance(content, str):
         content = content.strip()
-        if content:
+        if content and _preserves_core_conclusions(prompt, content):
             return content
     return None

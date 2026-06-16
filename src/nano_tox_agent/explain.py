@@ -41,8 +41,6 @@ def build_explanation(
     result: PredictionResult,
     literature_entries: list[dict[str, Any]],
 ) -> str:
-    del sample
-
     top_features = result.top_features[:5]
     if top_features:
         feature_lines = [
@@ -56,10 +54,18 @@ def build_explanation(
         f"预测毒性等级：{TOXICITY_TEXT.get(result.toxicity_level, result.toxicity_level)}",
         f"预测细胞活力：{result.cell_viability_percent:.1f}%",
         f"模型置信度：{result.confidence:.1%}",
+        "样本关键信息：",
+        (
+            f"- 剂量 {sample.dose_ug_ml:.1f} ug/mL；粒径 {sample.particle_size_nm:.1f} nm；"
+            f"Zeta 电位 {sample.zeta_potential_mv:.1f} mV"
+        ),
         "主要影响因素：",
         *feature_lines,
         "解释：",
-        f"模型当前预测为{TOXICITY_TEXT.get(result.toxicity_level, result.toxicity_level)}，结合细胞活力与关键特征变化进行综合判断。",
+        (
+            f"模型当前预测为{TOXICITY_TEXT.get(result.toxicity_level, result.toxicity_level)}，"
+            "结合样本的理化性质、实验条件和细胞类型综合判断，并参考细胞活力与关键特征变化。"
+        ),
         "建议：",
         _build_suggestion(result),
         "文献依据：",
