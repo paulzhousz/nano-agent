@@ -101,7 +101,8 @@ def test_streamlit_empty_state_uses_guidance_not_result_language():
     rendered = "\n".join(markdown_values(app))
     assert "当前页面可完成什么任务" in rendered
     assert "预测后将输出哪些结果" in rendered
-    assert '<div class="panel-title">研究结论</div>' not in rendered
+    assert "正式结果视图" not in rendered
+    assert "结论摘要" not in rendered
 
 
 def test_streamlit_prediction_flow_renders_new_summary_sections():
