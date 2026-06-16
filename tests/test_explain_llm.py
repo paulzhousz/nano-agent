@@ -1,10 +1,8 @@
+import json
+from unittest.mock import patch
+
 from nano_tox_agent.explain import build_explanation
-
-try:
-    from nano_tox_agent.llm_layer import generate_llm_response  # noqa: F401
-except ImportError:  # pragma: no cover - 任务 1 只实现解释引擎
-    generate_llm_response = None  # noqa: F401
-
+from nano_tox_agent.llm_layer import generate_llm_response
 from nano_tox_agent.schema import PredictionInput, PredictionResult
 
 
@@ -43,3 +41,60 @@ def test_build_explanation_includes_key_chinese_fields_and_literature_title():
     assert "预测细胞活力：42.0%" in explanation
     assert "建议降低暴露剂量" in explanation
     assert "Predicting Cytotoxicity of Nanoparticles" in explanation
+
+
+def test_generate_llm_response_returns_none_without_key(monkeypatch):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+
+    assert generate_llm_response("explain this") is None
+
+
+def test_generate_llm_response_parses_openai_compatible_response(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1/")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": "rewritten explanation"}}]}
+            ).encode("utf-8")
+
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        result = generate_llm_response("explain this")
+
+    assert result == "rewritten explanation"
+    assert captured["request"].full_url == "https://api.example.com/v1/chat/completions"
+    assert captured["timeout"] == 20
+
+
+def test_generate_llm_response_returns_none_on_bad_response(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"choices":[]}'
+
+    with patch("urllib.request.urlopen", return_value=FakeResponse()):
+        assert generate_llm_response("explain this") is None
