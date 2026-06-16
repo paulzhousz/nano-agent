@@ -74,12 +74,26 @@ def inject_styles() -> None:
         }
 
         .hero-card {
-            padding: 1.4rem 1.5rem 1.5rem;
-            margin-bottom: 1.25rem;
+            padding: 1.75rem 1.9rem 1.8rem;
+            margin-bottom: 1.4rem;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.94) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 180px;
+            height: 180px;
+            background: radial-gradient(circle, rgba(3, 105, 161, 0.12) 0%, transparent 70%);
+            pointer-events: none;
         }
 
         .section-card {
-            padding: 1.25rem;
+            padding: 1.35rem;
         }
 
         .eyebrow {
@@ -105,11 +119,33 @@ def inject_styles() -> None:
             line-height: 1.7;
         }
 
+        .hero-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.55rem;
+            margin-top: 1rem;
+        }
+
+        .hero-chip {
+            border: 1px solid #CBD5E1;
+            background: #F8FAFC;
+            color: var(--secondary);
+            border-radius: 999px;
+            padding: 0.3rem 0.7rem;
+            font-size: 0.82rem;
+        }
+
         .summary-card,
         .empty-card,
         .detail-card {
             padding: 1.25rem;
             margin-bottom: 1rem;
+        }
+
+        .input-group {
+            border-top: 1px solid #E2E8F0;
+            padding-top: 0.9rem;
+            margin-top: 0.9rem;
         }
 
         .panel-title {
@@ -192,8 +228,13 @@ def render_hero() -> None:
           <div class="eyebrow">Academic Screening Interface</div>
           <div class="hero-title">纳米材料毒性评估与解释</div>
           <div class="hero-copy">
-            面向肿瘤纳米药物筛选的科研工作台，突出研究结论、关键指标与解释依据，
-            适合日常复核，也适合截图用于课堂、答辩和组会汇报。
+            面向肿瘤纳米药物筛选与临床前研究判断的单页工作台，
+            以研究结论、关键指标和解释依据为主轴，适合日常复核与汇报截图。
+          </div>
+          <div class="hero-meta">
+            <span class="hero-chip">输出毒性等级</span>
+            <span class="hero-chip">细胞活力预测</span>
+            <span class="hero-chip">解释与文献依据</span>
           </div>
         </div>
         """,
@@ -205,18 +246,18 @@ def render_empty_state() -> None:
     st.markdown(
         """
         <div class="empty-card">
-          <div class="panel-title">研究结论</div>
+          <div class="panel-title">工作区说明</div>
           <div class="summary-text">
-            右栏将在提交预测后切换为正式结果视图，先给出一句可直接用于汇报的结论摘要，
-            再展开关键指标、解释与特征影响。
+            右侧区域用于承接预测后的主要输出，内容会按“研究结论、关键指标、解释与依据、特征影响”的顺序展开，
+            便于在研究复核和展示截图中直接阅读。
           </div>
           <div class="panel-title">当前页面可完成什么任务</div>
           <div class="summary-text">
-            填写纳米材料属性、暴露条件和实验对象信息，快速完成一次科研筛选式毒性预测。
+            你可以填写纳米材料属性、暴露条件和实验对象信息，快速完成一次科研筛选式毒性预测。
           </div>
           <div class="panel-title">预测后将输出哪些结果</div>
           <div class="summary-text">
-            页面会输出毒性等级、预测细胞活力、模型置信度，以及“解释与依据”和“特征影响”两块结果内容。
+            页面会输出研究结论、毒性等级、预测细胞活力、模型置信度，以及解释与依据和特征影响两块分析内容。
           </div>
         </div>
         """,
@@ -233,6 +274,7 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
     )
 
     with st.form("prediction_form", clear_on_submit=False):
+        st.markdown('<div class="input-group">', unsafe_allow_html=True)
         st.markdown("#### 材料属性")
         particle_size_nm = st.number_input("粒径 (nm)", min_value=1.0, value=90.0, step=1.0)
         zeta_potential_mv = st.number_input("Zeta 电位 (mV)", value=-8.0, step=1.0)
@@ -241,19 +283,30 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
             ["liposome", "polymer", "metal_oxide", "gold", "silver", "carbon", "zinc_oxide", "copper_oxide"],
         )
         surface_modification = st.selectbox("表面修饰", ["PEG", "unmodified", "citrate"])
+        st.markdown("</div>", unsafe_allow_html=True)
 
+        st.markdown('<div class="input-group">', unsafe_allow_html=True)
         st.markdown("#### 暴露条件")
         dose_ug_ml = st.number_input("暴露剂量 (μg/mL)", min_value=0.0, value=50.0, step=5.0)
         exposure_time_h = st.number_input("暴露时间 (h)", min_value=1.0, value=24.0, step=1.0)
+        st.markdown("</div>", unsafe_allow_html=True)
 
+        st.markdown('<div class="input-group">', unsafe_allow_html=True)
         st.markdown("#### 实验对象")
         cell_type = st.selectbox("细胞类型", ["A549", "BEAS-2B", "HepG2", "THP-1", "NRK-52E"])
         species = st.selectbox("来源物种", ["Human", "Rat", "Mouse"])
         tissue = st.selectbox("组织来源", ["Lung", "Liver", "Blood", "Kidney"])
         assay_method = st.selectbox("检测方法", ["MTT", "LDH"])
+        st.markdown("</div>", unsafe_allow_html=True)
 
+        st.markdown('<div class="input-group">', unsafe_allow_html=True)
         st.markdown("#### 解释增强")
         use_llm = st.checkbox("使用可选 LLM 改写解释", value=False)
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="muted-text" style="margin-top: 0.75rem;">填写完成后统一提交，结果将在右侧工作区呈现。</div>',
+            unsafe_allow_html=True,
+        )
         submitted = st.form_submit_button("预测毒性", use_container_width=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
