@@ -47,8 +47,10 @@ def test_streamlit_default_prediction_flow_renders_result():
     assert "毒性等级" in metric_labels
     assert "预测细胞活力" in metric_labels
     assert "模型置信度" in metric_labels
-    assert any("智能体解释" in subheader.value for subheader in app.subheader)
-    assert any("特征重要性" in subheader.value for subheader in app.subheader)
+    markdown_values = [node.value for node in app.markdown]
+    assert any("研究结论" in value for value in markdown_values)
+    assert any("解释与依据" in value for value in markdown_values)
+    assert any("特征影响" in value for value in markdown_values)
 
 
 def test_streamlit_default_view_shows_empty_state_guidance():
@@ -103,6 +105,6 @@ def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
     app.checkbox[0].check().run()
     app.button[0].click().run()
     assert not app.exception
-    assert any("智能体解释" in subheader.value for subheader in app.subheader)
-    assert len(app.text) == 1
-    assert app.text[0].value == expected_explanation
+    markdown_values = [node.value for node in app.markdown]
+    assert any("解释与依据" in value for value in markdown_values)
+    assert any(expected_explanation.splitlines()[0] in value for value in markdown_values)

@@ -1,4 +1,5 @@
 from pathlib import Path
+import html
 
 import streamlit as st
 
@@ -28,6 +29,11 @@ def format_user_error(error: Exception) -> str:
     if isinstance(error, ValueError):
         return f"输入或数据格式错误：{error}"
     return f"预测失败：{error}"
+
+
+def _clean_feature_name(feature_name: str) -> str:
+    cleaned = feature_name.removeprefix("numeric__").removeprefix("categorical__")
+    return cleaned.replace("_", " ")
 
 
 def inject_styles() -> None:
@@ -104,6 +110,52 @@ def inject_styles() -> None:
             line-height: 1.7;
         }
 
+        .summary-card,
+        .empty-card,
+        .detail-card {
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .panel-title {
+            color: var(--primary);
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.35rem;
+        }
+
+        .summary-text {
+            color: var(--secondary);
+            line-height: 1.75;
+            margin-bottom: 0.9rem;
+        }
+
+        .feature-row {
+            margin-bottom: 0.95rem;
+        }
+
+        .feature-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            font-size: 0.95rem;
+            color: var(--secondary);
+        }
+
+        .feature-bar {
+            height: 10px;
+            border-radius: 999px;
+            background: #E2E8F0;
+            overflow: hidden;
+            margin-top: 0.35rem;
+        }
+
+        .feature-bar > span {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent) 0%, #38BDF8 100%);
+        }
+
         @media (max-width: 960px) {
             .main .block-container {
                 padding-top: 1.25rem;
@@ -123,6 +175,21 @@ def inject_styles() -> None:
     )
 
 
+def build_summary_text(payload: dict[str, str], result: PredictionResult) -> str:
+    if result.toxicity_level == "high":
+        tendency = "样本呈现较强毒性信号，当前条件下不适合作为优先候选。"
+    elif result.toxicity_level == "medium":
+        tendency = "样本呈现中等毒性风险，建议继续做梯度验证后再判断是否推进。"
+    else:
+        tendency = "样本整体呈低毒性倾向，可作为后续体外验证的优先候选。"
+
+    return (
+        f"{tendency} 当前预测毒性等级为{payload['toxicity_label']}，"
+        f"预测细胞活力约为 {payload['cell_viability_percent']}，"
+        f"模型置信度为 {payload['confidence']}。"
+    )
+
+
 def render_hero() -> None:
     st.markdown(
         """
@@ -132,6 +199,29 @@ def render_hero() -> None:
           <div class="hero-copy">
             面向肿瘤纳米药物筛选的科研工作台，突出研究结论、关键指标与解释依据，
             适合日常复核，也适合截图用于课堂、答辩和组会汇报。
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_empty_state() -> None:
+    st.markdown(
+        """
+        <div class="empty-card">
+          <div class="panel-title">研究结论</div>
+          <div class="summary-text">
+            右栏将在提交预测后切换为正式结果视图，先给出一句可直接用于汇报的结论摘要，
+            再展开关键指标、解释与特征影响。
+          </div>
+          <div class="panel-title">当前页面可完成什么任务</div>
+          <div class="summary-text">
+            填写纳米材料属性、暴露条件和实验对象信息，快速完成一次科研筛选式毒性预测。
+          </div>
+          <div class="panel-title">预测后将输出哪些结果</div>
+          <div class="summary-text">
+            页面会输出毒性等级、预测细胞活力、模型置信度，以及“解释与依据”和“特征影响”两块结果内容。
           </div>
         </div>
         """,
@@ -188,6 +278,57 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
     return sample, use_llm, submitted
 
 
+def render_feature_bars(top_features: list[tuple[str, float]]) -> None:
+    st.markdown('<div class="detail-card">', unsafe_allow_html=True)
+    st.markdown("### 特征影响")
+
+    if not top_features:
+        st.markdown("暂无可展示的主要影响因素。")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    max_weight = max(abs(weight) for _, weight in top_features) or 1.0
+    for feature_name, weight in top_features:
+        width = max(abs(weight) / max_weight * 100.0, 8.0)
+        label = html.escape(_clean_feature_name(feature_name))
+        st.markdown(
+            f"""
+            <div class="feature-row">
+              <div class="feature-meta">
+                <span>{label}</span>
+                <span>{weight:.3f}</span>
+              </div>
+              <div class="feature-bar"><span style="width: {width:.1f}%;"></span></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_result_panel(payload: dict[str, str], result: PredictionResult) -> None:
+    st.markdown('<div class="summary-card">', unsafe_allow_html=True)
+    st.markdown("### 研究结论")
+    st.markdown(
+        f'<div class="summary-text">{build_summary_text(payload, result)}</div>',
+        unsafe_allow_html=True,
+    )
+
+    metric_columns = st.columns(3)
+    metric_columns[0].metric("毒性等级", payload["toxicity_label"])
+    metric_columns[1].metric("预测细胞活力", payload["cell_viability_percent"])
+    metric_columns[2].metric("模型置信度", payload["confidence"])
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="detail-card">', unsafe_allow_html=True)
+    st.markdown("### 解释与依据")
+    st.markdown(payload["explanation"])
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    render_feature_bars(result.top_features)
+
+
 def main() -> None:
     st.set_page_config(page_title="纳米毒性预测智能体", layout="wide")
     inject_styles()
@@ -197,8 +338,21 @@ def main() -> None:
     with left_col:
         sample, use_llm, submitted = render_input_panel()
     with right_col:
-        _ = (sample, use_llm, submitted)
-        st.markdown("<!-- result panel placeholder -->", unsafe_allow_html=True)
+        if not submitted:
+            render_empty_state()
+            return
+
+        try:
+            bundle = load_or_train_bundle(MODEL_PATH, DATA_PATH)
+            literature = select_literature(load_literature(LITERATURE_PATH), "feature_explanation")
+            result = predict_toxicity(bundle, sample)
+            explanation = build_explanation(sample, result, literature)
+            if use_llm:
+                explanation = generate_llm_response(explanation) or explanation
+            payload = build_result_payload(result, explanation)
+            render_result_panel(payload, result)
+        except Exception as error:
+            st.error(format_user_error(error))
 
 
 if __name__ == "__main__":
