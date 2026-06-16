@@ -93,6 +93,17 @@ def test_streamlit_default_view_shows_empty_state_guidance():
     assert any("预测后将输出哪些结果" in value for value in values)
 
 
+def test_streamlit_empty_state_uses_guidance_not_result_language():
+    app = AppTest.from_file(str(APP_FILE))
+    app.run()
+    assert not app.exception
+
+    rendered = "\n".join(markdown_values(app))
+    assert "当前页面可完成什么任务" in rendered
+    assert "预测后将输出哪些结果" in rendered
+    assert "研究结论" not in rendered
+
+
 def test_streamlit_prediction_flow_renders_new_summary_sections():
     _, result, _ = build_default_prediction_context()
     app = AppTest.from_file(str(APP_FILE))
@@ -112,6 +123,38 @@ def test_streamlit_prediction_flow_renders_new_summary_sections():
     assert "当前预测毒性等级为" in rendered
     assert clean_feature_name(top_feature_name) in rendered
     assert f"{top_feature_weight:.3f}" in rendered
+
+
+def test_streamlit_prediction_flow_renders_input_summary_card():
+    sample, _, _ = build_default_prediction_context()
+    app = AppTest.from_file(str(APP_FILE))
+    app.run()
+    assert not app.exception
+
+    app.button[0].click().run()
+    assert not app.exception
+
+    rendered = "\n".join(markdown_values(app))
+    assert "输入摘要" in rendered
+    assert f"粒径 {sample.particle_size_nm:.0f} nm" in rendered
+    assert f"剂量 {sample.dose_ug_ml:.0f} μg/mL" in rendered
+    assert sample.cell_type in rendered
+
+
+def test_streamlit_prediction_flow_renders_explanation_as_sections():
+    _, _, explanation = build_default_prediction_context()
+    app = AppTest.from_file(str(APP_FILE))
+    app.run()
+    assert not app.exception
+
+    app.button[0].click().run()
+    assert not app.exception
+
+    rendered = "\n".join(markdown_values(app))
+    assert "解释与依据" in rendered
+    assert "建议：" in rendered
+    assert "文献依据：" in rendered
+    assert explanation.splitlines()[-1] in rendered
 
 
 def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
