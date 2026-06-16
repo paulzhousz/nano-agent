@@ -51,6 +51,36 @@ def test_streamlit_default_prediction_flow_renders_result():
     assert any("特征重要性" in subheader.value for subheader in app.subheader)
 
 
+def test_streamlit_default_view_shows_empty_state_guidance():
+    app = AppTest.from_file(str(APP_FILE))
+    app.run()
+    assert not app.exception
+
+    markdown_values = [node.value for node in app.markdown]
+    assert any("纳米材料毒性评估与解释" in value for value in markdown_values)
+    assert any("当前页面可完成什么任务" in value for value in markdown_values)
+    assert any("预测后将输出哪些结果" in value for value in markdown_values)
+
+
+def test_streamlit_prediction_flow_renders_summary_and_feature_bars():
+    app = AppTest.from_file(str(APP_FILE))
+    app.run()
+    assert not app.exception
+
+    app.button[0].click().run()
+    assert not app.exception
+
+    metric_labels = [metric.label for metric in app.metric]
+    assert "毒性等级" in metric_labels
+    assert "预测细胞活力" in metric_labels
+    assert "模型置信度" in metric_labels
+
+    markdown_values = [node.value for node in app.markdown]
+    assert any("研究结论" in value for value in markdown_values)
+    assert any("解释与依据" in value for value in markdown_values)
+    assert any("特征影响" in value for value in markdown_values)
+
+
 def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_API_BASE", raising=False)
