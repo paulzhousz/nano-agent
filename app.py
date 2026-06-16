@@ -3,7 +3,7 @@ import html
 
 import streamlit as st
 
-from nano_tox_agent.explain import TOXICITY_TEXT, build_explanation
+from nano_tox_agent.explain import TOXICITY_TEXT, _clean_feature_name, build_explanation
 from nano_tox_agent.literature import load_literature, select_literature
 from nano_tox_agent.llm_layer import generate_llm_response
 from nano_tox_agent.predict import load_or_train_bundle, predict_toxicity
@@ -29,11 +29,6 @@ def format_user_error(error: Exception) -> str:
     if isinstance(error, ValueError):
         return f"输入或数据格式错误：{error}"
     return f"预测失败：{error}"
-
-
-def _clean_feature_name(feature_name: str) -> str:
-    cleaned = feature_name.removeprefix("numeric__").removeprefix("categorical__")
-    return cleaned.replace("_", " ")
 
 
 def inject_styles() -> None:
