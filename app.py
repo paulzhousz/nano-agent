@@ -104,20 +104,6 @@ def inject_styles() -> None:
             line-height: 1.7;
         }
 
-        .feature-bar {
-            height: 10px;
-            border-radius: 999px;
-            background: #E2E8F0;
-            overflow: hidden;
-            margin-top: 0.35rem;
-        }
-
-        .feature-bar > span {
-            display: block;
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent) 0%, #38BDF8 100%);
-        }
-
         @media (max-width: 960px) {
             .main .block-container {
                 padding-top: 1.25rem;
