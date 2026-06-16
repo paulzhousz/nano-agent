@@ -37,15 +37,26 @@ def generate_llm_response(prompt: str) -> str | None:
 
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            data: dict[str, Any] = json.loads(response.read().decode("utf-8"))
+            data: Any = json.loads(response.read().decode("utf-8"))
     except (OSError, URLError, TimeoutError, JSONDecodeError):
         return None
 
-    choices = data.get("choices")
-    if not choices:
+    if not isinstance(data, dict):
         return None
 
-    content = choices[0].get("message", {}).get("content")
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        return None
+
+    message = first_choice.get("message")
+    if not isinstance(message, dict):
+        return None
+
+    content = message.get("content")
     if isinstance(content, str):
         content = content.strip()
         if content:

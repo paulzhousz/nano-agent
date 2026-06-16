@@ -1,6 +1,8 @@
 import json
 from unittest.mock import patch
 
+import pytest
+
 from nano_tox_agent.explain import build_explanation
 from nano_tox_agent.llm_layer import generate_llm_response
 from nano_tox_agent.schema import PredictionInput, PredictionResult
@@ -95,6 +97,35 @@ def test_generate_llm_response_returns_none_on_bad_response(monkeypatch):
 
         def read(self):
             return b'{"choices":[]}'
+
+    with patch("urllib.request.urlopen", return_value=FakeResponse()):
+        assert generate_llm_response("explain this") is None
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        {"choices": [None]},
+        {"choices": [{"message": None}]},
+        {"choices": [{"message": {"content": ""}}]},
+    ],
+)
+def test_generate_llm_response_returns_none_on_malformed_or_empty_response(
+    monkeypatch, payload
+):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(payload).encode("utf-8")
 
     with patch("urllib.request.urlopen", return_value=FakeResponse()):
         assert generate_llm_response("explain this") is None
