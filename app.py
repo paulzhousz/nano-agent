@@ -195,8 +195,9 @@ def main() -> None:
 
     left_col, right_col = st.columns([0.95, 1.25], gap="large")
     with left_col:
-        render_input_panel()
+        sample, use_llm, submitted = render_input_panel()
     with right_col:
+        _ = (sample, use_llm, submitted)
         st.markdown("<!-- result panel placeholder -->", unsafe_allow_html=True)
 
 
