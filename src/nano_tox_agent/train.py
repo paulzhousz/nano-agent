@@ -16,7 +16,7 @@ from nano_tox_agent.schema import FEATURE_COLUMNS, TARGET_CLASSIFICATION, TARGET
 class ModelBundle:
     classifier: Pipeline
     regressor: Pipeline
-    feature_columns: list[str]
+    feature_columns: tuple[str, ...]
     classification_metrics: dict[str, float]
     regression_metrics: dict[str, float]
 
@@ -87,7 +87,7 @@ def build_model_bundle(frame: pd.DataFrame, random_state: int = 42) -> ModelBund
     return ModelBundle(
         classifier=final_classifier,
         regressor=final_regressor,
-        feature_columns=FEATURE_COLUMNS,
+        feature_columns=tuple(FEATURE_COLUMNS),
         classification_metrics={
             "accuracy": float(accuracy_score(y_class_test, class_pred)),
             "f1_macro": float(f1_score(y_class_test, class_pred, average="macro")),
