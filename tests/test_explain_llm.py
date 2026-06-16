@@ -3,9 +3,14 @@ from unittest.mock import patch
 
 import pytest
 
-from nano_tox_agent.explain import build_explanation
+from nano_tox_agent.explain import build_explanation, clean_feature_name
 from nano_tox_agent.llm_layer import generate_llm_response
 from nano_tox_agent.schema import PredictionInput, PredictionResult
+
+
+def test_clean_feature_name_removes_model_prefixes_and_formats_spacing():
+    assert clean_feature_name("numeric__dose_ug_ml") == "dose ug ml"
+    assert clean_feature_name("categorical__surface_modification_PEG") == "surface modification PEG"
 
 
 def test_build_explanation_includes_key_chinese_fields_and_literature_title():

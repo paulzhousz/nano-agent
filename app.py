@@ -3,7 +3,7 @@ import html
 
 import streamlit as st
 
-from nano_tox_agent.explain import TOXICITY_TEXT, _clean_feature_name, build_explanation
+from nano_tox_agent.explain import TOXICITY_TEXT, build_explanation, clean_feature_name
 from nano_tox_agent.literature import load_literature, select_literature
 from nano_tox_agent.llm_layer import generate_llm_response
 from nano_tox_agent.predict import load_or_train_bundle, predict_toxicity
@@ -285,7 +285,7 @@ def render_feature_bars(top_features: list[tuple[str, float]]) -> None:
     max_weight = max(abs(weight) for _, weight in top_features) or 1.0
     for feature_name, weight in top_features:
         width = max(abs(weight) / max_weight * 100.0, 8.0)
-        label = html.escape(_clean_feature_name(feature_name))
+        label = html.escape(clean_feature_name(feature_name))
         st.markdown(
             f"""
             <div class="feature-row">

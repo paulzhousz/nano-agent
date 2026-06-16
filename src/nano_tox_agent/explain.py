@@ -7,9 +7,13 @@ from nano_tox_agent.schema import PredictionInput, PredictionResult
 TOXICITY_TEXT = {"low": "低毒", "medium": "中毒", "high": "高毒"}
 
 
-def _clean_feature_name(feature_name: str) -> str:
+def clean_feature_name(feature_name: str) -> str:
     cleaned = feature_name.removeprefix("numeric__").removeprefix("categorical__")
     return cleaned.replace("_", " ")
+
+
+def _clean_feature_name(feature_name: str) -> str:
+    return clean_feature_name(feature_name)
 
 
 def _build_suggestion(result: PredictionResult) -> str:
@@ -44,7 +48,7 @@ def build_explanation(
     top_features = result.top_features[:5]
     if top_features:
         feature_lines = [
-            f"- {_clean_feature_name(feature_name)}：{weight:.3f}"
+            f"- {clean_feature_name(feature_name)}：{weight:.3f}"
             for feature_name, weight in top_features
         ]
     else:
