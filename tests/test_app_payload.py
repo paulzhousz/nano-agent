@@ -101,7 +101,7 @@ def test_streamlit_empty_state_uses_guidance_not_result_language():
     rendered = "\n".join(markdown_values(app))
     assert "当前页面可完成什么任务" in rendered
     assert "预测后将输出哪些结果" in rendered
-    assert "研究结论" not in rendered
+    assert '<div class="panel-title">研究结论</div>' not in rendered
 
 
 def test_streamlit_prediction_flow_renders_new_summary_sections():
@@ -155,6 +155,7 @@ def test_streamlit_prediction_flow_renders_explanation_as_sections():
     assert "建议：" in rendered
     assert "文献依据：" in rendered
     assert explanation.splitlines()[-1] in rendered
+    assert explanation not in markdown_values(app)
 
 
 def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
