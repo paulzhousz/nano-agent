@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import os
 from json import JSONDecodeError
+from pathlib import Path
 from typing import Any
 from urllib.error import URLError
 import urllib.request
 
 SYSTEM_PROMPT = "请用清晰中文改写模型拥有的毒性预测解释。不要改变毒性等级、细胞活力、置信度或引用依据。"
 PROTECTED_PREFIXES = ("预测毒性等级：", "预测细胞活力：", "模型置信度：")
+ROOT_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 
 
 def _extract_protected_lines(text: str) -> dict[str, str]:
@@ -33,10 +35,32 @@ def _preserves_core_conclusions(original: str, rewritten: str) -> bool:
     return True
 
 
+def load_env_file(path: Path = ROOT_ENV_PATH) -> None:
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'").strip('"')
+        if not key or key in os.environ or not value:
+            continue
+        os.environ[key] = value
+
+
 def generate_llm_response(prompt: str) -> str | None:
+    load_env_file()
     api_key = os.getenv("LLM_API_KEY")
     api_base = os.getenv("LLM_API_BASE")
-    if not api_key or not api_base:
+    if not api_key or not api_base or not api_key.strip() or not api_base.strip():
         return None
 
     model = os.getenv("LLM_MODEL", "gpt-4o-mini")

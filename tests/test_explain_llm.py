@@ -1,10 +1,11 @@
+import os
 import json
 from unittest.mock import patch
 
 import pytest
 
 from nano_tox_agent.explain import build_explanation, clean_feature_name
-from nano_tox_agent.llm_layer import generate_llm_response
+from nano_tox_agent.llm_layer import generate_llm_response, load_env_file
 from nano_tox_agent.schema import PredictionInput, PredictionResult
 
 
@@ -57,6 +58,82 @@ def test_build_explanation_includes_key_chinese_fields_and_literature_title():
 def test_generate_llm_response_returns_none_without_key(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_API_BASE", raising=False)
+
+    assert generate_llm_response("explain this") is None
+
+
+def test_load_env_file_sets_missing_llm_variables_from_dotenv(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "LLM_API_KEY=dotenv-key",
+                "LLM_API_BASE=https://dotenv.example.com/v1",
+                "LLM_MODEL=qwen-plus",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+
+    load_env_file(env_file)
+
+    assert os.getenv("LLM_API_KEY") == "dotenv-key"
+    assert os.getenv("LLM_API_BASE") == "https://dotenv.example.com/v1"
+    assert os.getenv("LLM_MODEL") == "qwen-plus"
+
+
+def test_load_env_file_does_not_override_existing_environment(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "LLM_API_KEY=dotenv-key",
+                "LLM_API_BASE=https://dotenv.example.com/v1",
+                "LLM_MODEL=dotenv-model",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LLM_API_KEY", "shell-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://shell.example.com/v1")
+    monkeypatch.setenv("LLM_MODEL", "shell-model")
+
+    load_env_file(env_file)
+
+    assert os.getenv("LLM_API_KEY") == "shell-key"
+    assert os.getenv("LLM_API_BASE") == "https://shell.example.com/v1"
+    assert os.getenv("LLM_MODEL") == "shell-model"
+
+
+def test_load_env_file_ignores_blank_values(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "LLM_API_KEY=",
+                "LLM_API_BASE=   ",
+                "LLM_MODEL=",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+
+    load_env_file(env_file)
+
+    assert os.getenv("LLM_API_KEY") is None
+    assert os.getenv("LLM_API_BASE") is None
+    assert os.getenv("LLM_MODEL") is None
+
+
+def test_generate_llm_response_returns_none_when_env_vars_are_blank(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "")
+    monkeypatch.setenv("LLM_API_BASE", " ")
 
     assert generate_llm_response("explain this") is None
 

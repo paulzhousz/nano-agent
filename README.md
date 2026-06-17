@@ -29,7 +29,7 @@ rtk uv run streamlit run app.py --server.address 127.0.0.1 --server.port 8501
 
 ## 可选 LLM 层
 
-设置 `LLM_API_KEY`、`LLM_API_BASE` 和可选 `LLM_MODEL`，即可启用 OpenAI-compatible 的解释改写。LLM 只允许改写解释文本，永远不决定也不修改毒性等级、预测细胞活力、模型置信度这些核心预测结论。当未配置、请求失败或改写不合规时，系统会自动回退到模板解释。
+应用会自动尝试读取仓库根目录 `.env` 中的 `LLM_API_KEY`、`LLM_API_BASE` 和可选 `LLM_MODEL`；也可以直接通过系统环境变量注入。同名系统环境变量优先，不会被 `.env` 覆盖。可参考 `.env.example` 创建本地 `.env`。LLM 只允许改写解释文本，永远不决定也不修改毒性等级、预测细胞活力、模型置信度这些核心预测结论。当未配置、变量值为空、请求失败或改写不合规时，系统会自动回退到模板解释。
 
 ## 手动验收清单
 

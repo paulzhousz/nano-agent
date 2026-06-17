@@ -73,13 +73,13 @@ def test_streamlit_default_prediction_flow_renders_result():
     app.button[0].click().run()
     assert not app.exception
 
-    metric_labels = [metric.label for metric in app.metric]
-    assert "毒性等级" in metric_labels
-    assert "预测细胞活力" in metric_labels
-    assert "模型置信度" in metric_labels
     values = markdown_values(app)
-    assert any("当前预测毒性等级为" in value for value in values)
-    assert any("模型置信度为" in value for value in values)
+    rendered = "\n".join(values)
+    assert "毒性等级" in rendered
+    assert "预测细胞活力" in rendered
+    assert "模型置信度" in rendered
+    assert "当前预测毒性等级为" not in rendered
+    assert "模型置信度为" not in rendered
 
 
 def test_streamlit_default_view_shows_empty_state_guidance():
@@ -91,6 +91,7 @@ def test_streamlit_default_view_shows_empty_state_guidance():
     assert any("纳米材料毒性评估与解释" in value for value in values)
     assert any("当前页面可完成什么任务" in value for value in values)
     assert any("预测后将输出哪些结果" in value for value in values)
+    assert "</div>" not in values
 
 
 def test_streamlit_empty_state_uses_guidance_not_result_language():
@@ -121,7 +122,6 @@ def test_streamlit_prediction_flow_renders_new_summary_sections():
     assert any("解释与依据" in value for value in values)
     assert any("特征影响" in value for value in values)
     assert "当前页面可完成什么任务" not in rendered
-    assert "当前预测毒性等级为" in rendered
     assert clean_feature_name(top_feature_name) in rendered
     assert f"{top_feature_weight:.3f}" in rendered
 
@@ -136,10 +136,46 @@ def test_streamlit_prediction_flow_renders_input_summary_card():
     assert not app.exception
 
     rendered = "\n".join(markdown_values(app))
-    assert "输入摘要" in rendered
-    assert f"粒径 {sample.particle_size_nm:.0f} nm" in rendered
-    assert f"剂量 {sample.dose_ug_ml:.0f} μg/mL" in rendered
+    assert "样本信息" in rendered
+    assert "材料属性" in rendered
+    assert "暴露条件" in rendered
+    assert "实验对象" in rendered
+    assert "粒径" in rendered
+    assert f"{sample.particle_size_nm:.0f} nm" in rendered
+    assert "Zeta 电位" in rendered
+    assert f"{sample.zeta_potential_mv:.0f} mV" in rendered
+    assert "暴露剂量" in rendered
+    assert f"{sample.dose_ug_ml:.0f} μg/mL" in rendered
+    assert "暴露时间" in rendered
+    assert f"{sample.exposure_time_h:.0f} h" in rendered
+    assert "材料类型" in rendered
+    assert sample.material_type in rendered
+    assert "表面修饰" in rendered
+    assert sample.surface_modification in rendered
+    assert "细胞类型" in rendered
     assert sample.cell_type in rendered
+    assert "来源物种" in rendered
+    assert sample.species in rendered
+    assert "组织来源" in rendered
+    assert sample.tissue in rendered
+    assert "检测方法" in rendered
+    assert sample.assay_method in rendered
+
+
+def test_streamlit_prediction_flow_orders_result_sections_vertically():
+    app = AppTest.from_file(str(APP_FILE))
+    app.run()
+    assert not app.exception
+
+    app.button[0].click().run()
+    assert not app.exception
+
+    rendered = "\n".join(markdown_values(app))
+    conclusion_idx = rendered.index("研究结论")
+    input_idx = rendered.index("样本信息")
+    feature_idx = rendered.index("特征影响")
+    explanation_idx = rendered.index("解释与依据")
+    assert conclusion_idx < input_idx < feature_idx < explanation_idx
 
 
 def test_streamlit_prediction_flow_renders_explanation_as_sections():
@@ -153,10 +189,33 @@ def test_streamlit_prediction_flow_renders_explanation_as_sections():
 
     rendered = "\n".join(markdown_values(app))
     assert "解释与依据" in rendered
-    assert "建议：" in rendered
-    assert "文献依据：" in rendered
-    assert explanation.splitlines()[-1] in rendered
+    assert "解释" in rendered
+    assert "建议" in rendered
+    assert "文献依据" in rendered
+    assert "预测毒性等级：" not in rendered
+    assert "预测细胞活力：" not in rendered
+    assert "模型置信度：" not in rendered
+    assert "样本关键信息：" not in rendered
+    assert "主要影响因素：" not in rendered
+    assert explanation.splitlines()[-4] in rendered
+    assert explanation.splitlines()[-2] not in rendered
     assert explanation not in markdown_values(app)
+
+
+def test_streamlit_prediction_flow_renders_clickable_literature_links():
+    _, _, explanation = build_default_prediction_context()
+    app = AppTest.from_file(str(APP_FILE))
+    app.run()
+    assert not app.exception
+
+    app.button[0].click().run()
+    assert not app.exception
+
+    rendered = "\n".join(markdown_values(app))
+    assert "href=" in rendered
+    assert "https://doi.org/10.1021/acsanm.4c02269" in rendered
+    assert "Predicting Cytotoxicity of Nanoparticles: A Meta-Analysis Using Machine Learning" in rendered
+    assert explanation.splitlines()[-1] not in rendered
 
 
 def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
@@ -172,5 +231,9 @@ def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
     app.button[0].click().run()
     assert not app.exception
     values = markdown_values(app)
+    rendered = "\n".join(values)
     assert any("解释与依据" in value for value in values)
-    assert expected_explanation in values
+    assert expected_explanation not in values
+    assert "解释" in rendered
+    assert "建议" in rendered
+    assert "文献依据" in rendered
