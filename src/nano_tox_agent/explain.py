@@ -1,3 +1,9 @@
+"""规则化解释生成。
+
+这个模块不做模型推理，而是把预测结果、输入样本和文献摘要
+整理成适合前端展示或交给 LLM 改写的基础解释文本。
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -8,6 +14,7 @@ TOXICITY_TEXT = {"low": "低毒", "medium": "中毒", "high": "高毒"}
 
 
 def clean_feature_name(feature_name: str) -> str:
+    """把 sklearn 生成的特征名转成更易读的展示文本。"""
     cleaned = feature_name.removeprefix("numeric__").removeprefix("categorical__")
     return cleaned.replace("_", " ")
 
@@ -17,6 +24,7 @@ def _clean_feature_name(feature_name: str) -> str:
 
 
 def _build_suggestion(result: PredictionResult) -> str:
+    """按毒性等级输出下一步实验建议。"""
     if result.toxicity_level == "high":
         return "建议降低暴露剂量，增加 PEG 等表面修饰，并补充正常细胞系对照验证。"
     if result.toxicity_level == "medium":
@@ -25,6 +33,7 @@ def _build_suggestion(result: PredictionResult) -> str:
 
 
 def _format_literature(literature_entries: list[dict[str, Any]]) -> str:
+    """截取少量文献摘要，作为解释文本里的证据部分。"""
     if not literature_entries:
         return "无可用文献依据。"
 
@@ -45,6 +54,7 @@ def build_explanation(
     result: PredictionResult,
     literature_entries: list[dict[str, Any]],
 ) -> str:
+    """拼装一段结构化解释，后续可直接展示或交给 LLM 改写。"""
     top_features = result.top_features[:5]
     if top_features:
         feature_lines = [

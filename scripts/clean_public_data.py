@@ -1,3 +1,9 @@
+"""公开纳米毒性数据清洗脚本。
+
+当前版本主要接入 eNanoMapper 导出结果，把多张原始长表清洗为统一训练表，
+并同步生成 metadata，记录来源、筛选规则、单位换算和审计计数。
+"""
+
 import json
 import re
 from pathlib import Path
@@ -135,6 +141,7 @@ def main(
     processed_output_path: Path = DEFAULT_PROCESSED_OUTPUT_PATH,
     metadata_output_path: Path = DEFAULT_METADATA_OUTPUT_PATH,
 ) -> None:
+    """执行完整清洗链路，并输出训练 CSV 与 metadata。"""
     policy = load_source_policy(policy_path)
     export_paths = validate_source_exports(policy, SOURCE_DIRS)
     active_training_sources = set(policy["active_training_sources"])
@@ -146,6 +153,7 @@ def main(
         "drop_filter_counts": {},
     }
     for source_name, directory in SOURCE_DIRS.items():
+        # 只有在 data_sources.json 中显式激活的来源才允许进入训练集。
         csv_paths = export_paths[source_name]
         if source_name not in active_training_sources:
             source_counts[source_name] = 0
@@ -181,6 +189,7 @@ def main(
 
 
 def load_source_policy(path: Path) -> dict[str, Any]:
+    """读取来源配置，并校验 active/deferred 划分是否合法。"""
     with path.open("r", encoding="utf-8") as handle:
         policy = json.load(handle)
     priority_names = [entry["name"] for entry in policy.get("priority_order", [])]
@@ -202,6 +211,7 @@ def load_source_policy(path: Path) -> dict[str, Any]:
 
 
 def validate_source_exports(policy: dict[str, Any], source_dirs: dict[str, Path]) -> dict[str, list[Path]]:
+    """确认激活来源有数据，延后来源没有误放入 CSV。"""
     active_training_sources = set(policy["active_training_sources"])
     export_paths: dict[str, list[Path]] = {}
     for source_name, directory in source_dirs.items():
@@ -227,6 +237,7 @@ def _read_source_file(path: Path) -> pd.DataFrame:
 
 
 def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """把通用来源的异名列映射到项目统一 schema。"""
     lowered = {column.lower().strip(): column for column in frame.columns}
     output = pd.DataFrame()
     for target, aliases in COLUMN_ALIASES.items():
@@ -236,6 +247,7 @@ def _normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _normalize_enanomapper_exports(directory: Path) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """把 eNanoMapper 多份导出拼成统一训练行。"""
     viability = _read_matching_export(directory, "*viability*.csv")
     conditions = _read_matching_export(directory, "*conditions*.csv")
     pchem = _read_matching_export(directory, "*pchem*.csv")
@@ -244,6 +256,7 @@ def _normalize_enanomapper_exports(directory: Path) -> tuple[pd.DataFrame, dict[
     viability, viability_audit = _filter_target_viability(viability)
     conditions, condition_audit = _prepare_conditions(conditions)
     pchem_lookup, pchem_audit = _build_pchem_lookup(pchem)
+    # viability 提供目标值，conditions 提供剂量/时间，pchem 提供粒径与 zeta。
     merged = viability.merge(
         conditions[["effectid_hs", "dose_ug_ml", "exposure_time_h"]],
         left_on="id",
@@ -297,6 +310,7 @@ def _normalize_enanomapper_exports(directory: Path) -> tuple[pd.DataFrame, dict[
 
 
 def _read_matching_export(directory: Path, pattern: str) -> pd.DataFrame:
+    """要求每类导出恰好一份，避免误用旧文件或重复文件。"""
     paths = sorted(directory.glob(pattern))
     if len(paths) != 1:
         raise SystemExit(f"Expected exactly one eNanoMapper export matching {pattern}, found {len(paths)}")
@@ -304,6 +318,7 @@ def _read_matching_export(directory: Path, pattern: str) -> pd.DataFrame:
 
 
 def _prepare_conditions(conditions: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """从条件表中抽取统一单位的剂量和暴露时间。"""
     prepared = conditions.copy()
     prepared["dose_ug_ml"], dose_audit = _first_supported_measurement(
         prepared,
@@ -325,6 +340,7 @@ def _prepare_conditions(conditions: pd.DataFrame) -> tuple[pd.DataFrame, dict[st
 
 
 def _filter_target_viability(viability: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """只保留目标终点为 % CELL VIABILITY 的记录。"""
     endpoint_matches = viability["effectendpoint_s"].map(_normalize_target_text).eq(_normalize_target_text(TARGET_VIABILITY_ENDPOINT))
     unit_matches = viability["unit_s"].map(_normalize_target_text).eq(_normalize_target_text(TARGET_VIABILITY_UNIT))
     target_rows = endpoint_matches & unit_matches
@@ -348,6 +364,7 @@ def _first_supported_measurement(
     measurements: list[dict[str, str | None]],
     unit_factors: dict[str, float],
 ) -> tuple[pd.Series, dict[str, Any]]:
+    """从多个候选列里按顺序挑选第一个可换算的测量值。"""
     converted_columns: list[pd.Series] = []
     rejected_value_rows = 0
     for measurement in measurements:
@@ -367,6 +384,7 @@ def _first_supported_measurement(
         converted_columns.append((values * pd.to_numeric(factors, errors="coerce")).where(supported))
     if not converted_columns:
         return pd.Series(pd.NA, index=frame.index), {"rejected_value_rows": 0}
+    # 多列候选时优先保留前面的字段；后面的只作为回填来源。
     converted = pd.concat(converted_columns, axis=1)
     return converted.bfill(axis=1).iloc[:, 0], {"rejected_value_rows": rejected_value_rows}
 
@@ -379,6 +397,7 @@ def _normalize_unit(value: object) -> str:
 
 
 def _build_pchem_lookup(pchem: pd.DataFrame) -> tuple[dict[str, pd.Series], dict[str, Any]]:
+    """从物化表构建粒径与 zeta 的两级检索表。"""
     prepared = pchem.copy()
     prepared["effect_key"] = prepared["effectendpoint_s"].astype("string").str.upper()
     prepared["unit_key"] = prepared["unit_s"].astype("string").str.lower()
@@ -391,6 +410,7 @@ def _build_pchem_lookup(pchem: pd.DataFrame) -> tuple[dict[str, pd.Series], dict
     has_mv_unit = prepared["unit_key"].eq("mv").fillna(False)
     size_rows = prepared[has_size_endpoint & has_nm_unit & prepared["loValue_d"].gt(0)]
     zeta_rows = prepared[has_zeta_endpoint & has_mv_unit & prepared["loValue_d"].notna()]
+    # 优先按样本 UUID 精确匹配；缺失时再退化到材料编码级别的中位数。
     lookup = {
         "size_by_uuid": _preferred_size_median(size_rows, "s_uuid_s"),
         "zeta_by_uuid": zeta_rows.groupby("s_uuid_s")["loValue_d"].median(),
@@ -417,6 +437,7 @@ def _build_pchem_lookup(pchem: pd.DataFrame) -> tuple[dict[str, pd.Series], dict
 
 
 def _preferred_size_median(rows: pd.DataFrame, key_column: str) -> pd.Series:
+    """在多个粒径终点存在时，按预设 bucket 优先级选一个代表值。"""
     if rows.empty:
         return pd.Series(dtype="float64")
     grouped = rows.groupby([key_column, "size_bucket"], dropna=True)["loValue_d"].median().reset_index()
@@ -426,6 +447,7 @@ def _preferred_size_median(rows: pd.DataFrame, key_column: str) -> pd.Series:
 
 
 def _material_key(value: object) -> str:
+    """把材料名称压缩为便于模糊匹配的 key。"""
     text = str(value).lower()
     nm_match = re.search(r"nm[-\s]?\d+", text)
     formula = next((formula for formula in ["tio2", "zno", "sio2"] if formula in text), None)
@@ -497,6 +519,7 @@ def _assay_method(value: object) -> str:
 
 
 def _coerce_and_filter(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int]]:
+    """统一类型后删除缺失、越界和非法记录。"""
     clean = frame.copy()
     for column in NUMERIC_COLUMNS:
         clean[column] = pd.to_numeric(clean[column], errors="coerce")
@@ -528,6 +551,7 @@ def _write_metadata(
     processed_output_path: Path,
     metadata_output_path: Path,
 ) -> None:
+    """把清洗规则、审计计数和覆盖范围写入 metadata。"""
     training_sources = policy["active_training_sources"]
     deferred_sources = policy["deferred_sources"]
     metadata = {
@@ -595,6 +619,7 @@ def _write_metadata(
 
 
 def _final_coverage_summary(frame: pd.DataFrame) -> dict[str, Any]:
+    """汇总最终训练集的分类分布与数值范围，便于人工复核。"""
     return {
         "record_count": len(frame),
         "categorical_unique_counts": {

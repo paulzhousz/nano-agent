@@ -1,3 +1,9 @@
+"""Streamlit 单页应用入口。
+
+页面负责承接参数录入、模型加载、预测推理、解释生成与结果展示，
+把后端产出的结构化结果组织成适合研究人员阅读的工作台。
+"""
+
 from pathlib import Path
 import html
 import re
@@ -159,6 +165,7 @@ ARCHITECTURE_DIAGRAM_SVG = quote("""
 
 
 def build_result_payload(result: PredictionResult, explanation: str) -> dict[str, str]:
+    """把模型输出整理成前端展示更方便的字符串载荷。"""
     return {
         "toxicity_label": TOXICITY_TEXT.get(
             result.toxicity_level, result.toxicity_level
@@ -170,6 +177,7 @@ def build_result_payload(result: PredictionResult, explanation: str) -> dict[str
 
 
 def format_user_error(error: Exception) -> str:
+    """把底层异常翻译成用户可理解的报错信息。"""
     if isinstance(error, FileNotFoundError):
         return f"数据或模型文件缺失：{error}"
     if isinstance(error, ValueError):
@@ -178,6 +186,7 @@ def format_user_error(error: Exception) -> str:
 
 
 def inject_styles() -> None:
+    """集中注入单页应用使用的 CSS 主题与布局样式。"""
     styles = """
         <style>
         :root {
@@ -755,6 +764,7 @@ def inject_styles() -> None:
 
 
 def build_summary_text(payload: dict[str, str], result: PredictionResult) -> str:
+    """按毒性等级生成一句可直接展示的结论摘要。"""
     if result.toxicity_level == "high":
         tendency = "样本呈现较强毒性信号，当前条件下不适合作为优先候选。"
     elif result.toxicity_level == "medium":
@@ -770,6 +780,7 @@ def build_summary_text(payload: dict[str, str], result: PredictionResult) -> str
 
 
 def render_hero() -> None:
+    """渲染页面顶部的品牌区与能力说明。"""
     st.markdown(
         """
         <div class="hero-card">
@@ -791,6 +802,7 @@ def render_hero() -> None:
 
 
 def render_empty_state() -> None:
+    """在用户尚未提交参数时展示默认结果工作区。"""
     st.markdown(
         f"""
         <div class="workspace-kicker">Result Workspace</div>
@@ -816,6 +828,7 @@ def render_empty_state() -> None:
 
 
 def render_input_panel() -> tuple[PredictionInput, bool, bool]:
+    """渲染左侧录入表单，并返回样本、LLM 开关和提交状态。"""
     st.markdown(
         """
         <div class="workspace-kicker">Parameter Workspace</div>
@@ -891,6 +904,7 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
         # )
         submitted = st.form_submit_button("预测", use_container_width=True)
 
+    # 表单字段统一封装为 PredictionInput，便于直接进入推理流程。
     sample = PredictionInput(
         particle_size_nm=particle_size_nm,
         zeta_potential_mv=zeta_potential_mv,
@@ -907,6 +921,7 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
 
 
 def render_feature_bars(top_features: list[tuple[str, float]]) -> None:
+    """把主要特征重要性渲染成条形卡片。"""
     if not top_features:
         st.markdown(
             dedent("""
@@ -947,6 +962,7 @@ def render_feature_bars(top_features: list[tuple[str, float]]) -> None:
 
 
 def render_input_summary(sample: PredictionInput) -> None:
+    """把用户输入按材料/暴露/实验对象分组回显。"""
     grouped_items = [
         (
             "材料属性",
@@ -1005,6 +1021,7 @@ def render_input_summary(sample: PredictionInput) -> None:
 
 
 def normalize_explanation_line(line: str) -> str:
+    """清理 Markdown 痕迹，便于把解释文本重新拆段展示。"""
     normalized = line.strip()
     normalized = re.sub(r"^#{1,6}\s*", "", normalized)
     normalized = re.sub(r"^\s*[-*]\s+", "", normalized)
@@ -1013,6 +1030,7 @@ def normalize_explanation_line(line: str) -> str:
 
 
 def extract_explanation_sections(explanation: str) -> dict[str, list[str]]:
+    """从模板解释或 LLM 改写结果中提取解释、建议、文献依据三段。"""
     sections = {"解释": [], "建议": [], "文献依据": []}
     current_section: str | None = None
     for raw_line in explanation.splitlines():
@@ -1034,6 +1052,7 @@ def extract_explanation_sections(explanation: str) -> dict[str, list[str]]:
 def render_explanation_sections(
     explanation: str, literature_entries: list[dict[str, object]]
 ) -> None:
+    """把解释文本和文献条目渲染成结构化说明卡片。"""
     sections = extract_explanation_sections(explanation)
     explanation_body = (
         "".join(
@@ -1087,6 +1106,7 @@ def render_explanation_sections(
 
 
 def build_llm_loading_markup() -> str:
+    """生成调用 LLM 改写期间的占位提示卡片。"""
     return dedent("""
         <div class="detail-card loading-card">
           <div class="workspace-kicker">LLM Enhancement</div>
@@ -1105,10 +1125,12 @@ def build_llm_loading_markup() -> str:
 
 
 def render_llm_loading_state(slot: st.delta_generator.DeltaGenerator) -> None:
+    """在指定占位区展示 LLM 正在处理的状态。"""
     slot.markdown(build_llm_loading_markup(), unsafe_allow_html=True)
 
 
 def build_metric_grid_markup(payload: dict[str, str], result: PredictionResult) -> str:
+    """生成研究结论卡里的核心指标栅格。"""
     toxicity_tone = html.escape(result.toxicity_level)
     return dedent(f"""
         <div class="metric-grid">
@@ -1134,6 +1156,7 @@ def render_result_panel(
     result: PredictionResult,
     literature_entries: list[dict[str, object]],
 ) -> None:
+    """按固定顺序输出结论、样本信息、特征影响与解释依据。"""
     metric_grid = build_metric_grid_markup(payload, result)
     st.markdown(
         (
@@ -1151,6 +1174,7 @@ def render_result_panel(
 
 
 def main() -> None:
+    """串起表单提交、模型推理与结果渲染的整页流程。"""
     st.set_page_config(page_title="纳米毒性预测智能体", layout="wide")
     inject_styles()
     render_hero()
@@ -1165,6 +1189,7 @@ def main() -> None:
 
         llm_loading_slot = st.empty()
         try:
+            # 预测链路：模型 -> 文献 -> 预测 -> 规则解释 -> 可选 LLM 改写 -> 前端渲染。
             if use_llm:
                 render_llm_loading_state(llm_loading_slot)
             bundle = load_or_train_bundle(MODEL_PATH, DATA_PATH)

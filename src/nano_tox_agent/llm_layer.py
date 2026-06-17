@@ -1,3 +1,9 @@
+"""可选的 LLM 改写层。
+
+LLM 只负责把模板解释改写得更适合阅读，不参与毒性预测本身；
+同时会校验核心结论行，避免改写时篡改等级、活力或置信度。
+"""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _normalize_protected_line(line: str) -> str:
+    """把 Markdown 风格的列表/加粗清掉，便于比较关键结论行。"""
     normalized = line.strip()
     for prefix in ("- ", "* "):
         if normalized.startswith(prefix):
@@ -26,6 +33,7 @@ def _normalize_protected_line(line: str) -> str:
 
 
 def _extract_protected_lines(text: str) -> dict[str, str]:
+    """提取必须保持不变的核心结论行。"""
     protected_lines: dict[str, str] = {}
     for raw_line in text.splitlines():
         line = _normalize_protected_line(raw_line)
@@ -36,6 +44,7 @@ def _extract_protected_lines(text: str) -> dict[str, str]:
 
 
 def _preserves_core_conclusions(original: str, rewritten: str) -> bool:
+    """确认 LLM 改写没有改动关键数值与标签。"""
     original_lines = _extract_protected_lines(original)
     rewritten_lines = _extract_protected_lines(rewritten)
     for prefix in PROTECTED_PREFIXES:
@@ -48,6 +57,7 @@ def _preserves_core_conclusions(original: str, rewritten: str) -> bool:
 
 
 def load_env_file(path: Path | None = None) -> None:
+    """从项目根目录 .env 补充可选的 LLM 配置。"""
     if os.getenv("LLM_DISABLE_DOTENV") == "1":
         LOGGER.info("LLM .env auto-load skipped because LLM_DISABLE_DOTENV=1")
         return
@@ -78,6 +88,7 @@ def load_env_file(path: Path | None = None) -> None:
 
 
 def generate_llm_response(prompt: str) -> str | None:
+    """调用兼容 OpenAI Chat Completions 的接口改写解释文本。"""
     load_env_file()
     api_key = os.getenv("LLM_API_KEY")
     api_base = os.getenv("LLM_API_BASE")
@@ -135,6 +146,7 @@ def generate_llm_response(prompt: str) -> str | None:
     content = message.get("content")
     if isinstance(content, str):
         content = content.strip()
+        # 只有在核心结论完全保留时，才接受改写结果覆盖模板解释。
         if content and _preserves_core_conclusions(prompt, content):
             LOGGER.info("LLM rewrite accepted")
             return content

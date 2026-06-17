@@ -1,3 +1,9 @@
+"""核心数据结构与输入校验。
+
+这个模块定义了训练与预测共用的字段列表、输入/输出数据类，
+以及把连续 cell viability 映射到离散毒性等级的规则。
+"""
+
 from dataclasses import asdict, dataclass
 from math import isfinite
 
@@ -10,6 +16,7 @@ TOXICITY_LABELS = ["low", "medium", "high"]
 
 
 def _validate_finite_number(field_name: str, value: object) -> float:
+    """确保数值字段既是数字，又不是 NaN/inf。"""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field_name} must be a number")
     if not isfinite(value):
@@ -19,6 +26,8 @@ def _validate_finite_number(field_name: str, value: object) -> float:
 
 @dataclass(frozen=True)
 class PredictionInput:
+    """单条待预测样本，字段顺序与训练特征列保持一致。"""
+
     particle_size_nm: float
     zeta_potential_mv: float
     dose_ug_ml: float
@@ -36,6 +45,8 @@ class PredictionInput:
 
 @dataclass(frozen=True)
 class PredictionResult:
+    """统一封装分类、回归与解释所需的预测结果。"""
+
     toxicity_level: str
     cell_viability_percent: float
     confidence: float
@@ -43,6 +54,7 @@ class PredictionResult:
 
 
 def classify_viability(cell_viability_percent: float) -> str:
+    """按业务阈值把细胞活力映射为低/中/高毒。"""
     cell_viability_percent = _validate_finite_number("cell_viability_percent", cell_viability_percent)
     if cell_viability_percent >= 80.0:
         return "low"
@@ -52,6 +64,7 @@ def classify_viability(cell_viability_percent: float) -> str:
 
 
 def validate_prediction_input(sample: PredictionInput) -> PredictionInput:
+    """在模型推理前做基础输入校验，尽早返回可理解的错误。"""
     values = sample.to_dict()
     for field_name in NUMERIC_FEATURES:
         _validate_finite_number(field_name, values[field_name])
