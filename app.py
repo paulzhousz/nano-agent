@@ -392,14 +392,38 @@ def inject_styles() -> None:
             font-weight: 600;
         }
 
-        div[data-testid="stForm"] button[kind="formSubmit"] {
-            min-height: 3.2rem;
-            border-radius: 16px;
-            border: none;
-            background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+        div[data-testid="stForm"] button[kind="secondaryFormSubmit"] {
+            min-height: 3.4rem;
+            border-radius: 18px;
+            border: 1px solid rgba(11, 60, 145, 0.15);
+            background: #005BBB;
             color: #FFFFFF;
-            font-weight: 700;
-            letter-spacing: 0.02em;
+            font-weight: 800;
+            font-size: 1.08rem;
+            letter-spacing: 0.04em;
+            box-shadow: 0 16px 30px rgba(0, 91, 187, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        }
+
+        div[data-testid="stForm"] button[kind="secondaryFormSubmit"]:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 20px 34px rgba(0, 91, 187, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+            filter: saturate(1.06);
+        }
+
+        div[data-testid="stForm"] button[kind="secondaryFormSubmit"]:focus,
+        div[data-testid="stForm"] button[kind="secondaryFormSubmit"]:focus-visible {
+            outline: none;
+            box-shadow:
+                0 0 0 4px rgba(97, 166, 255, 0.28),
+                0 20px 34px rgba(0, 91, 187, 0.34),
+                inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        }
+
+        div[data-testid="stForm"] button[kind="secondaryFormSubmit"] p {
+            font-weight: 800 !important;
+            color: #FFFFFF !important;
+            font-size: 1.08rem !important;
         }
 
         .panel-title {
@@ -861,11 +885,11 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
 
         st.markdown("#### 解释增强")
         use_llm = st.checkbox("使用可选 LLM 改写解释", value=False)
-        st.markdown(
-            '<div class="muted-text" style="margin-top: 0.75rem;">填写完成后统一提交，结果将在右侧工作区呈现。</div>',
-            unsafe_allow_html=True,
-        )
-        submitted = st.form_submit_button("预测毒性", use_container_width=True)
+        # st.markdown(
+        #     '<div class="muted-text" style="margin-top: 0.75rem;">填写完成后统一提交，结果将在右侧工作区呈现。</div>',
+        #     unsafe_allow_html=True,
+        # )
+        submitted = st.form_submit_button("预测", use_container_width=True)
 
     sample = PredictionInput(
         particle_size_nm=particle_size_nm,

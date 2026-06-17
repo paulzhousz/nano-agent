@@ -11,3 +11,4 @@ models/*.json
 data/cache/
 .superpowers/
 .worktrees/
+outputs/
