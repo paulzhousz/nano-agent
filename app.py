@@ -1,5 +1,6 @@
 from pathlib import Path
 import html
+import re
 from textwrap import dedent
 from urllib.parse import quote
 
@@ -495,6 +496,107 @@ def inject_styles() -> None:
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
         }
 
+        .loading-card {
+            position: relative;
+            overflow: hidden;
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 246, 255, 0.98) 100%);
+        }
+
+        .loading-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                110deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.35) 42%,
+                rgba(137, 182, 255, 0.18) 50%,
+                transparent 58%
+            );
+            transform: translateX(-120%);
+            animation: loading-sheen 2.2s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        .loading-title {
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: var(--primary);
+            margin: 0.2rem 0 0.42rem;
+        }
+
+        .loading-copy {
+            color: var(--secondary);
+            line-height: 1.72;
+            max-width: 42rem;
+            margin-bottom: 0.9rem;
+        }
+
+        .loading-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            margin-bottom: 1rem;
+        }
+
+        .loading-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.48rem 0.76rem;
+            border-radius: 999px;
+            border: 1px solid #CFE0F4;
+            background: rgba(255, 255, 255, 0.82);
+            color: var(--secondary);
+            font-size: 0.84rem;
+            font-weight: 700;
+        }
+
+        .loading-dot {
+            width: 0.48rem;
+            height: 0.48rem;
+            border-radius: 999px;
+            background: var(--accent);
+            animation: loading-pulse 1.2s ease-in-out infinite;
+        }
+
+        .loading-pill:nth-child(2) .loading-dot { animation-delay: 0.16s; }
+        .loading-pill:nth-child(3) .loading-dot { animation-delay: 0.32s; }
+
+        .loading-bar {
+            position: relative;
+            height: 0.68rem;
+            border-radius: 999px;
+            background: rgba(188, 208, 234, 0.45);
+            overflow: hidden;
+        }
+
+        .loading-bar > span {
+            display: block;
+            width: 38%;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--accent-strong) 0%, #5EA6FF 100%);
+            animation: loading-progress 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loading-sheen {
+            0% { transform: translateX(-120%); }
+            100% { transform: translateX(120%); }
+        }
+
+        @keyframes loading-pulse {
+            0%, 100% { transform: scale(0.85); opacity: 0.55; }
+            50% { transform: scale(1.1); opacity: 1; }
+        }
+
+        @keyframes loading-progress {
+            0% { transform: translateX(-120%); }
+            50% { transform: translateX(85%); }
+            100% { transform: translateX(210%); }
+        }
+
         @media (max-width: 960px) {
             .main .block-container {
                 padding-top: 1.25rem;
@@ -760,6 +862,14 @@ def render_input_summary(sample: PredictionInput) -> None:
     )
 
 
+def normalize_explanation_line(line: str) -> str:
+    normalized = line.strip()
+    normalized = re.sub(r"^#{1,6}\s*", "", normalized)
+    normalized = re.sub(r"^\s*[-*]\s+", "", normalized)
+    normalized = normalized.replace("**", "").replace("__", "")
+    return normalized.strip()
+
+
 def extract_explanation_sections(explanation: str) -> dict[str, list[str]]:
     sections = {"解释": [], "建议": [], "文献依据": []}
     current_section: str | None = None
@@ -767,17 +877,15 @@ def extract_explanation_sections(explanation: str) -> dict[str, list[str]]:
         line = raw_line.strip()
         if not line:
             continue
-        if line == "解释：":
-            current_section = "解释"
+        normalized = normalize_explanation_line(line)
+        heading = normalized.rstrip("：:")
+        if heading in sections:
+            current_section = heading
             continue
-        if line == "建议：":
-            current_section = "建议"
-            continue
-        if line == "文献依据：":
-            current_section = "文献依据"
+        if normalized == "---":
             continue
         if current_section in sections:
-            sections[current_section].append(line)
+            sections[current_section].append(normalized)
     return sections
 
 
@@ -785,10 +893,10 @@ def render_explanation_sections(explanation: str, literature_entries: list[dict[
     sections = extract_explanation_sections(explanation)
     explanation_body = "".join(
         f'<div class="explanation-line">{html.escape(line)}</div>' for line in sections["解释"]
-    )
+    ) or '<div class="explanation-line">暂无补充解释。</div>'
     suggestion_body = "".join(
         f'<div class="explanation-line">{html.escape(line)}</div>' for line in sections["建议"]
-    )
+    ) or '<div class="explanation-line">暂无补充建议。</div>'
     literature_body_parts: list[str] = []
     for entry in literature_entries[:3]:
         title = html.escape(str(entry.get("title", "未命名文献")))
@@ -809,23 +917,46 @@ def render_explanation_sections(explanation: str, literature_entries: list[dict[
             ).strip()
         )
     literature_body = "".join(literature_body_parts) or '<div class="explanation-line">无可用文献依据。</div>'
+    card_markup = (
+        '<div class="detail-card">'
+        '<div class="workspace-kicker">Interpretation</div>'
+        '<div class="workspace-card-title">解释与依据</div>'
+        '<div class="section-strong-label">解释</div>'
+        f"{explanation_body}"
+        '<div class="section-strong-label">建议</div>'
+        f"{suggestion_body}"
+        '<div class="section-strong-label">文献依据</div>'
+        f"{literature_body}"
+        "</div>"
+    )
     st.markdown(
-        dedent(
-            f"""
-        <div class="detail-card">
-          <div class="workspace-kicker">Interpretation</div>
-          <div class="workspace-card-title">解释与依据</div>
-          <div class="section-strong-label">解释</div>
-          {explanation_body}
-          <div class="section-strong-label">建议</div>
-          {suggestion_body}
-          <div class="section-strong-label">文献依据</div>
-          {literature_body}
-        </div>
-        """
-        ),
+        card_markup,
         unsafe_allow_html=True,
     )
+
+
+def build_llm_loading_markup() -> str:
+    return dedent(
+        """
+        <div class="detail-card loading-card">
+          <div class="workspace-kicker">LLM Enhancement</div>
+          <div class="loading-title">正在生成增强解释</div>
+          <div class="loading-copy">
+            正在调用 LLM 对研究解释进行改写与整理，页面会在保留核心结论不变的前提下更新为更适合阅读的结果文本。
+          </div>
+          <div class="loading-pills">
+            <div class="loading-pill"><span class="loading-dot"></span>提取核心结论</div>
+            <div class="loading-pill"><span class="loading-dot"></span>整理解释结构</div>
+            <div class="loading-pill"><span class="loading-dot"></span>校验输出一致性</div>
+          </div>
+          <div class="loading-bar"><span></span></div>
+        </div>
+        """
+    ).strip()
+
+
+def render_llm_loading_state(slot: st.delta_generator.DeltaGenerator) -> None:
+    slot.markdown(build_llm_loading_markup(), unsafe_allow_html=True)
 
 
 def build_metric_grid_markup(payload: dict[str, str], result: PredictionResult) -> str:
@@ -887,16 +1018,21 @@ def main() -> None:
             render_empty_state()
             return
 
+        llm_loading_slot = st.empty()
         try:
+            if use_llm:
+                render_llm_loading_state(llm_loading_slot)
             bundle = load_or_train_bundle(MODEL_PATH, DATA_PATH)
             literature = select_literature(load_literature(LITERATURE_PATH), "feature_explanation")
             result = predict_toxicity(bundle, sample)
             explanation = build_explanation(sample, result, literature)
             if use_llm:
                 explanation = generate_llm_response(explanation) or explanation
+            llm_loading_slot.empty()
             payload = build_result_payload(result, explanation)
             render_result_panel(sample, payload, result, literature)
         except Exception as error:
+            llm_loading_slot.empty()
             st.error(format_user_error(error))
 
 

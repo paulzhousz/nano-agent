@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -56,6 +57,7 @@ def test_build_explanation_includes_key_chinese_fields_and_literature_title():
 
 
 def test_generate_llm_response_returns_none_without_key(monkeypatch):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_API_BASE", raising=False)
 
@@ -131,6 +133,19 @@ def test_load_env_file_ignores_blank_values(tmp_path, monkeypatch):
     assert os.getenv("LLM_MODEL") is None
 
 
+def test_load_env_file_can_be_disabled_by_env_flag(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("LLM_API_KEY=dotenv-key\nLLM_API_BASE=https://dotenv.example.com/v1\n", encoding="utf-8")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    monkeypatch.setenv("LLM_DISABLE_DOTENV", "1")
+
+    load_env_file(env_file)
+
+    assert os.getenv("LLM_API_KEY") is None
+    assert os.getenv("LLM_API_BASE") is None
+
+
 def test_generate_llm_response_returns_none_when_env_vars_are_blank(monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "")
     monkeypatch.setenv("LLM_API_BASE", " ")
@@ -139,6 +154,7 @@ def test_generate_llm_response_returns_none_when_env_vars_are_blank(monkeypatch)
 
 
 def test_generate_llm_response_parses_openai_compatible_response(monkeypatch):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1/")
     monkeypatch.delenv("LLM_MODEL", raising=False)
@@ -168,9 +184,12 @@ def test_generate_llm_response_parses_openai_compatible_response(monkeypatch):
     assert result == "rewritten explanation"
     assert captured["request"].full_url == "https://api.example.com/v1/chat/completions"
     assert captured["timeout"] == 20
+    assert captured["request"].headers["User-agent"] == "curl/8.7.1"
+    assert captured["request"].headers["Accept"] == "*/*"
 
 
 def test_generate_llm_response_returns_none_on_bad_response(monkeypatch):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
 
@@ -189,6 +208,7 @@ def test_generate_llm_response_returns_none_on_bad_response(monkeypatch):
 
 
 def test_generate_llm_response_returns_none_on_non_utf8_response(monkeypatch):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
 
@@ -237,6 +257,7 @@ def test_generate_llm_response_returns_none_on_non_utf8_response(monkeypatch):
 def test_generate_llm_response_returns_none_when_key_conclusion_lines_missing_or_changed(
     monkeypatch, rewritten
 ):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
     original_explanation = "\n".join(
@@ -267,6 +288,7 @@ def test_generate_llm_response_returns_none_when_key_conclusion_lines_missing_or
 def test_generate_llm_response_accepts_rewrite_when_key_conclusion_lines_preserved(
     monkeypatch,
 ):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
     original_explanation = "\n".join(
@@ -302,6 +324,46 @@ def test_generate_llm_response_accepts_rewrite_when_key_conclusion_lines_preserv
         assert generate_llm_response(original_explanation) == rewritten
 
 
+def test_generate_llm_response_accepts_rewrite_when_core_lines_use_markdown_formatting(
+    monkeypatch,
+):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
+    original_explanation = "\n".join(
+        [
+            "预测毒性等级：中毒",
+            "预测细胞活力：67.2%",
+            "模型置信度：72.3%",
+            "解释：原始解释正文。",
+        ]
+    )
+    rewritten = "\n".join(
+        [
+            "- **预测毒性等级：中毒**",
+            "- **预测细胞活力：67.2%**",
+            "- **模型置信度：72.3%**",
+            "### 解释",
+            "这是更流畅的改写，但没有改变核心结论。",
+        ]
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps(
+                {"choices": [{"message": {"content": rewritten}}]}
+            ).encode("utf-8")
+
+    with patch("urllib.request.urlopen", return_value=FakeResponse()):
+        assert generate_llm_response(original_explanation) == rewritten
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -314,6 +376,7 @@ def test_generate_llm_response_accepts_rewrite_when_key_conclusion_lines_preserv
 def test_generate_llm_response_returns_none_on_malformed_or_empty_response(
     monkeypatch, payload
 ):
+    monkeypatch.setattr("nano_tox_agent.llm_layer.ROOT_ENV_PATH", Path("/tmp/does-not-exist.env"))
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("LLM_API_BASE", "https://api.example.com/v1")
 

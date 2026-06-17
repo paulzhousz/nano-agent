@@ -8,7 +8,14 @@ APP_FILE = REPO_ROOT / "app.py"
 
 sys.path.insert(0, str(REPO_ROOT))
 
-from app import DATA_PATH, LITERATURE_PATH, MODEL_PATH, build_result_payload
+from app import (
+    DATA_PATH,
+    LITERATURE_PATH,
+    MODEL_PATH,
+    build_llm_loading_markup,
+    build_result_payload,
+    extract_explanation_sections,
+)
 from nano_tox_agent.explain import build_explanation, clean_feature_name
 from nano_tox_agent.literature import load_literature, select_literature
 from nano_tox_agent.predict import load_or_train_bundle, predict_toxicity
@@ -55,6 +62,15 @@ def test_build_result_payload_maps_labels_for_display():
     assert payload["cell_viability_percent"] == "66.5%"
     assert payload["confidence"] == "0.72"
     assert payload["explanation"] == "解释文本"
+
+
+def test_build_llm_loading_markup_contains_transition_copy():
+    markup = build_llm_loading_markup()
+
+    assert "正在生成增强解释" in markup
+    assert "提取核心结论" in markup
+    assert "整理解释结构" in markup
+    assert "校验输出一致性" in markup
 
 
 def test_format_user_error_is_actionable():
@@ -219,6 +235,7 @@ def test_streamlit_prediction_flow_renders_clickable_literature_links():
 
 
 def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
+    monkeypatch.setenv("LLM_DISABLE_DOTENV", "1")
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_API_BASE", raising=False)
     _, _, expected_explanation = build_default_prediction_context()
@@ -237,3 +254,26 @@ def test_streamlit_llm_checkbox_without_env_uses_template_fallback(monkeypatch):
     assert "解释" in rendered
     assert "建议" in rendered
     assert "文献依据" in rendered
+
+
+def test_extract_explanation_sections_accepts_markdown_style_llm_rewrite():
+    rewritten = "\n".join(
+        [
+            "以下是对该毒性预测结果的清晰中文改写，保留原有数值与引用依据不变：",
+            "---",
+            "**预测毒性等级：中毒**",
+            "**预测细胞活力：67.2%**",
+            "**模型置信度：72.3%**",
+            "### 解释",
+            "模型当前判定结果为**中毒**。这一判断是基于样本的理化性质、实验条件以及细胞类型的综合分析得出。",
+            "### 建议",
+            "建议进一步开展**剂量梯度实验**，并比较癌细胞系与正常细胞系的敏感性差异。",
+            "### 文献依据",
+            "- Predicting Cytotoxicity of Nanoparticles: A Meta-Analysis Using Machine Learning",
+        ]
+    )
+    sections = extract_explanation_sections(rewritten)
+
+    assert "模型当前判定结果为" in "\n".join(sections["解释"])
+    assert "剂量梯度实验" in "\n".join(sections["建议"])
+    assert "Predicting Cytotoxicity of Nanoparticles" in "\n".join(sections["文献依据"])
