@@ -15,8 +15,7 @@ from nano_tox_agent.schema import PredictionInput, PredictionResult
 DATA_PATH = Path("data/processed/toxicity_clean.csv")
 MODEL_PATH = Path("models/toxicity_bundle.joblib")
 LITERATURE_PATH = Path("literature/literature_base.json")
-HERO_BACKGROUND_SVG = quote(
-    """
+HERO_BACKGROUND_SVG = quote("""
     <svg width="1600" height="640" viewBox="0 0 1600 640" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="1600" height="640" fill="#F6FAFF"/>
       <g opacity="0.9">
@@ -62,13 +61,108 @@ HERO_BACKGROUND_SVG = quote(
         </radialGradient>
       </defs>
     </svg>
-    """
-)
+    """)
+ARCHITECTURE_DIAGRAM_SVG = quote("""
+    <svg width="860" height="1040" viewBox="0 0 860 1040" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="860" height="1040" rx="28" fill="#F8FBFF"/>
+      <rect x="18" y="18" width="824" height="1004" rx="24" stroke="#D4E2F2" stroke-width="2"/>
+      <text x="42" y="72" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">功能架构图</text>
+      <text x="42" y="106" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="17">围绕数据准备、模型训练、预测解释与结果输出的完整功能链路</text>
+
+      <rect x="34" y="136" width="368" height="184" rx="28" fill="#F5F9FF" stroke="#D7E5F5" stroke-width="2"/>
+      <rect x="458" y="136" width="368" height="406" rx="28" fill="#F3FAFF" stroke="#D4E7F7" stroke-width="2"/>
+      <rect x="34" y="324" width="368" height="338" rx="28" fill="#F4F7FD" stroke="#D7E4F1" stroke-width="2"/>
+      <rect x="34" y="674" width="792" height="338" rx="28" fill="#F7FAF4" stroke="#DCE7D5" stroke-width="2"/>
+
+      <rect x="42" y="126" width="136" height="28" rx="14" fill="#2F69BF"/>
+      <text x="58" y="145" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">阶段一  数据准备</text>
+      <rect x="466" y="126" width="136" height="28" rx="14" fill="#0E7C86"/>
+      <text x="482" y="145" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">阶段三  在线预测</text>
+      <rect x="42" y="340" width="136" height="28" rx="14" fill="#6A5ACD"/>
+      <text x="58" y="359" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">阶段二  离线建模</text>
+      <rect x="42" y="664" width="152" height="28" rx="14" fill="#6A8E51"/>
+      <text x="58" y="683" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">阶段四  解释与交付</text>
+
+      <rect x="42" y="170" width="352" height="132" rx="24" fill="#FFFFFF" stroke="#C9D9EC" stroke-width="2"/>
+      <text x="68" y="182" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">数据准备</text>
+      <text x="68" y="216" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">公开数据与文献附表进入统一数据池</text>
+      <text x="68" y="242" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">完成字段筛选、单位统一、缺失值处理</text>
+      <text x="68" y="268" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">生成可训练样本与统一 schema</text>
+
+      <rect x="466" y="170" width="352" height="132" rx="24" fill="#FFFFFF" stroke="#C9D9EC" stroke-width="2"/>
+      <text x="492" y="182" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">用户输入样本</text>
+      <text x="492" y="216" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">录入粒径、电位、剂量、暴露时间</text>
+      <text x="492" y="242" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">补充材料类型、细胞类型、检测方法</text>
+      <text x="492" y="268" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">形成单条待预测样本</text>
+
+      <rect x="68" y="402" width="300" height="92" rx="22" fill="#EEF4FB" stroke="#BCD1E7" stroke-width="2"/>
+      <text x="92" y="426" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">毒性分类训练</text>
+      <text x="92" y="454" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">基于统一样本训练分类器</text>
+      <text x="92" y="478" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">学习高 / 中 / 低毒性等级边界</text>
+
+      <rect x="68" y="518" width="300" height="92" rx="22" fill="#EEF4FB" stroke="#BCD1E7" stroke-width="2"/>
+      <text x="92" y="544" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">细胞活力回归训练</text>
+      <text x="92" y="572" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">训练回归器预测细胞活力百分比</text>
+      <text x="92" y="596" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">两类模型统一封装为 bundle 文件</text>
+
+      <rect x="466" y="364" width="352" height="152" rx="24" fill="#DCF4F5" stroke="#78C7CD" stroke-width="3"/>
+      <rect x="466" y="364" width="352" height="14" rx="24" fill="#0E7C86"/>
+      <text x="492" y="398" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">预测推理</text>
+      <text x="682" y="398" fill="#0E7C86" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700">核心推理节点</text>
+      <text x="492" y="430" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">加载模型文件并完成特征编码</text>
+      <text x="492" y="456" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">融合用户输入与训练得到的模型参数</text>
+      <text x="492" y="482" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">输出毒性等级、细胞活力、模型置信度</text>
+
+      <rect x="42" y="714" width="352" height="132" rx="24" fill="#FFFFFF" stroke="#C9D9EC" stroke-width="2"/>
+      <text x="68" y="738" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">解释生成</text>
+      <text x="68" y="770" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">按特征权重整理主要影响因素</text>
+      <text x="68" y="796" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">拼接规则解释、建议与文献摘要</text>
+      <text x="68" y="822" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="16">形成可直接展示的模板解释</text>
+
+      <rect x="466" y="714" width="352" height="64" rx="20" fill="#FFFFFF" stroke="#C9D9EC" stroke-width="2"/>
+      <text x="492" y="728" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">可选 LLM 改写</text>
+      <text x="492" y="752" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">仅改写解释文本，不参与模型预测</text>
+
+      <rect x="466" y="790" width="352" height="64" rx="20" fill="#F7F1E3" stroke="#E4D4B5" stroke-width="2"/>
+      <text x="492" y="808" fill="#B45309" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">模板回退</text>
+      <text x="492" y="832" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">无可用配置或调用失败时返回原始解释</text>
+
+      <rect x="42" y="878" width="220" height="108" rx="22" fill="#FFFFFF" stroke="#C9D9EC" stroke-width="2"/>
+      <text x="66" y="912" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">文献摘要库</text>
+      <text x="66" y="940" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="15">提供数据来源摘要</text>
+      <text x="66" y="964" fill="#475569" font-family="Arial, Helvetica, sans-serif" font-size="15">提供方法依据与解释支撑</text>
+
+      <rect x="290" y="878" width="528" height="120" rx="24" fill="#FFFFFF" stroke="#C9D9EC" stroke-width="2"/>
+      <text x="318" y="912" fill="#0B3C91" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">最终输出</text>
+      <text x="318" y="942" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">研究结论、毒性等级、预测细胞活力、模型置信度</text>
+      <text x="318" y="966" fill="#0F172A" font-family="Arial, Helvetica, sans-serif" font-size="15">样本信息、特征影响、解释与依据、文献链接与下一步建议</text>
+
+      <path d="M218 298V332" stroke="#0B3C91" stroke-width="4" stroke-linecap="round"/>
+      <path d="M642 298V356" stroke="#0B3C91" stroke-width="4" stroke-linecap="round"/>
+      <path d="M394 440H466" stroke="#0B3C91" stroke-width="4" stroke-linecap="round"/>
+      <path d="M394 558H430V470H466" stroke="#0B3C91" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M642 516V650H218V700" stroke="#0B3C91" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M394 770H466" stroke="#0B3C91" stroke-width="4" stroke-linecap="round"/>
+      <path d="M642 846V862H554V878" stroke="#0B3C91" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M262 932H290" stroke="#0B3C91" stroke-width="4" stroke-linecap="round"/>
+
+      <circle cx="218" cy="332" r="6" fill="#0B3C91"/>
+      <circle cx="642" cy="356" r="6" fill="#0B3C91"/>
+      <circle cx="466" cy="440" r="6" fill="#0B3C91"/>
+      <circle cx="466" cy="470" r="6" fill="#0B3C91"/>
+      <circle cx="218" cy="700" r="6" fill="#0B3C91"/>
+      <circle cx="466" cy="770" r="6" fill="#0B3C91"/>
+      <circle cx="554" cy="878" r="6" fill="#0B3C91"/>
+      <circle cx="290" cy="932" r="6" fill="#0B3C91"/>
+    </svg>
+    """)
 
 
 def build_result_payload(result: PredictionResult, explanation: str) -> dict[str, str]:
     return {
-        "toxicity_label": TOXICITY_TEXT.get(result.toxicity_level, result.toxicity_level),
+        "toxicity_label": TOXICITY_TEXT.get(
+            result.toxicity_level, result.toxicity_level
+        ),
         "cell_viability_percent": f"{result.cell_viability_percent}%",
         "confidence": f"{result.confidence}",
         "explanation": explanation,
@@ -627,7 +721,9 @@ def inject_styles() -> None:
         }
         </style>
         """
-    styles = styles.replace("__HERO_BACKGROUND__", f"data:image/svg+xml;utf8,{HERO_BACKGROUND_SVG}")
+    styles = styles.replace(
+        "__HERO_BACKGROUND__", f"data:image/svg+xml;utf8,{HERO_BACKGROUND_SVG}"
+    )
     st.markdown(
         styles,
         unsafe_allow_html=True,
@@ -653,11 +749,11 @@ def render_hero() -> None:
     st.markdown(
         """
         <div class="hero-card">
-          <div class="eyebrow">Academic Screening Interface</div>
-          <div class="hero-title">纳米材料毒性评估与解释</div>
+          <div class="eyebrow">Nano Toxicity Agent</div>
+          <div class="hero-title">纳米材料毒性预测智能体</div>
           <div class="hero-copy">
             面向肿瘤纳米药物筛选与临床前研究判断的单页工作台，
-            以研究结论、关键指标和解释依据为主轴，适合日常复核与汇报截图。
+            以研究结论、关键指标和解释依据为主轴。
           </div>
           <div class="hero-meta">
             <span class="hero-chip">输出毒性等级</span>
@@ -672,7 +768,7 @@ def render_hero() -> None:
 
 def render_empty_state() -> None:
     st.markdown(
-        """
+        f"""
         <div class="workspace-kicker">Result Workspace</div>
         <div class="workspace-card-title">等待生成研究结论</div>
         <div class="section-copy">提交预测后，右侧会切换成正式结果工作区。</div>
@@ -680,15 +776,14 @@ def render_empty_state() -> None:
           <div class="panel-title">工作区说明</div>
           <div class="summary-text">
             右侧区域用于承接预测后的主要输出，内容会按“研究结论、关键指标、解释与依据、特征影响”的顺序展开，
-            便于在研究复核和展示截图中直接阅读。
+            便于在研究复核直接阅读。
           </div>
-          <div class="panel-title">当前页面可完成什么任务</div>
-          <div class="summary-text">
-            你可以填写纳米材料属性、暴露条件和实验对象信息，快速完成一次科研筛选式毒性预测。
-          </div>
-          <div class="panel-title">预测后将输出哪些结果</div>
-          <div class="summary-text">
-            页面会输出研究结论、毒性等级、预测细胞活力、模型置信度，以及解释与依据和特征影响两块分析内容。
+          <div style="margin-top: 1.5rem;">
+            <img
+              src="data:image/svg+xml;utf8,{ARCHITECTURE_DIAGRAM_SVG}"
+              alt="功能架构图"
+              style="width: 100%; display: block; border-radius: 20px; border: 1px solid #D7E2EE;"
+            />
           </div>
         </div>
         """,
@@ -710,7 +805,9 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
         st.markdown("#### 材料属性")
         material_col_left, material_col_right = st.columns(2, gap="medium")
         with material_col_left:
-            particle_size_nm = st.number_input("粒径 (nm)", min_value=1.0, value=90.0, step=1.0)
+            particle_size_nm = st.number_input(
+                "粒径 (nm)", min_value=1.0, value=90.0, step=1.0
+            )
         with material_col_right:
             zeta_potential_mv = st.number_input("Zeta 电位 (mV)", value=-8.0, step=1.0)
 
@@ -718,26 +815,45 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
         with material_meta_col_left:
             material_type = st.selectbox(
                 "材料类型",
-                ["liposome", "polymer", "metal_oxide", "gold", "silver", "carbon", "zinc_oxide", "copper_oxide"],
+                [
+                    "liposome",
+                    "polymer",
+                    "metal_oxide",
+                    "gold",
+                    "silver",
+                    "carbon",
+                    "zinc_oxide",
+                    "copper_oxide",
+                ],
             )
         with material_meta_col_right:
-            surface_modification = st.selectbox("表面修饰", ["PEG", "unmodified", "citrate"])
+            surface_modification = st.selectbox(
+                "表面修饰", ["PEG", "unmodified", "citrate"]
+            )
 
         st.markdown("#### 暴露条件")
         exposure_col_left, exposure_col_right = st.columns(2, gap="medium")
         with exposure_col_left:
-            dose_ug_ml = st.number_input("暴露剂量 (μg/mL)", min_value=0.0, value=50.0, step=5.0)
+            dose_ug_ml = st.number_input(
+                "暴露剂量 (μg/mL)", min_value=0.0, value=50.0, step=5.0
+            )
         with exposure_col_right:
-            exposure_time_h = st.number_input("暴露时间 (h)", min_value=1.0, value=24.0, step=1.0)
+            exposure_time_h = st.number_input(
+                "暴露时间 (h)", min_value=1.0, value=24.0, step=1.0
+            )
 
         st.markdown("#### 实验对象")
         experiment_col_left, experiment_col_right = st.columns(2, gap="medium")
         with experiment_col_left:
-            cell_type = st.selectbox("细胞类型", ["A549", "BEAS-2B", "HepG2", "THP-1", "NRK-52E"])
+            cell_type = st.selectbox(
+                "细胞类型", ["A549", "BEAS-2B", "HepG2", "THP-1", "NRK-52E"]
+            )
         with experiment_col_right:
             species = st.selectbox("来源物种", ["Human", "Rat", "Mouse"])
 
-        experiment_meta_col_left, experiment_meta_col_right = st.columns(2, gap="medium")
+        experiment_meta_col_left, experiment_meta_col_right = st.columns(
+            2, gap="medium"
+        )
         with experiment_meta_col_left:
             tissue = st.selectbox("组织来源", ["Lung", "Liver", "Blood", "Kidney"])
         with experiment_meta_col_right:
@@ -769,15 +885,13 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
 def render_feature_bars(top_features: list[tuple[str, float]]) -> None:
     if not top_features:
         st.markdown(
-            dedent(
-                """
+            dedent("""
             <div class="detail-card">
               <div class="workspace-kicker">Feature Signals</div>
               <div class="workspace-card-title">特征影响</div>
               <div class="summary-text">暂无可展示的主要影响因素。</div>
             </div>
-            """
-            ),
+            """),
             unsafe_allow_html=True,
         )
         return
@@ -787,9 +901,7 @@ def render_feature_bars(top_features: list[tuple[str, float]]) -> None:
     for feature_name, weight in top_features:
         width = max(abs(weight) / max_weight * 100.0, 8.0)
         label = html.escape(clean_feature_name(feature_name))
-        rows.append(
-            dedent(
-                f"""
+        rows.append(dedent(f"""
                 <div class="feature-row">
                   <div class="feature-meta">
                     <span>{label}</span>
@@ -797,19 +909,15 @@ def render_feature_bars(top_features: list[tuple[str, float]]) -> None:
                   </div>
                   <div class="feature-bar"><span style="width: {width:.1f}%;"></span></div>
                 </div>
-                """
-            ).strip()
-        )
+                """).strip())
     st.markdown(
-        dedent(
-            f"""
+        dedent(f"""
         <div class="detail-card">
           <div class="workspace-kicker">Feature Signals</div>
           <div class="workspace-card-title">特征影响</div>
           {''.join(rows)}
         </div>
-        """
-        ),
+        """),
         unsafe_allow_html=True,
     )
 
@@ -842,9 +950,7 @@ def render_input_summary(sample: PredictionInput) -> None:
             ],
         ),
     ]
-    groups_markup = "".join(
-        dedent(
-            f"""
+    groups_markup = "".join(dedent(f"""
             <div class="input-summary-group">
               <div class="input-summary-group-title">{html.escape(group_title)}</div>
               <div class="input-summary-grid">
@@ -861,20 +967,15 @@ def render_input_summary(sample: PredictionInput) -> None:
                 )}
               </div>
             </div>
-            """
-        ).strip()
-        for group_title, items in grouped_items
-    )
+            """).strip() for group_title, items in grouped_items)
     st.markdown(
-        dedent(
-            f"""
+        dedent(f"""
         <div class="detail-card">
           <div class="workspace-kicker">Sample Snapshot</div>
           <div class="panel-title">样本信息</div>
           {groups_markup}
         </div>
-        """
-        ),
+        """),
         unsafe_allow_html=True,
     )
 
@@ -906,14 +1007,24 @@ def extract_explanation_sections(explanation: str) -> dict[str, list[str]]:
     return sections
 
 
-def render_explanation_sections(explanation: str, literature_entries: list[dict[str, object]]) -> None:
+def render_explanation_sections(
+    explanation: str, literature_entries: list[dict[str, object]]
+) -> None:
     sections = extract_explanation_sections(explanation)
-    explanation_body = "".join(
-        f'<div class="explanation-line">{html.escape(line)}</div>' for line in sections["解释"]
-    ) or '<div class="explanation-line">暂无补充解释。</div>'
-    suggestion_body = "".join(
-        f'<div class="explanation-line">{html.escape(line)}</div>' for line in sections["建议"]
-    ) or '<div class="explanation-line">暂无补充建议。</div>'
+    explanation_body = (
+        "".join(
+            f'<div class="explanation-line">{html.escape(line)}</div>'
+            for line in sections["解释"]
+        )
+        or '<div class="explanation-line">暂无补充解释。</div>'
+    )
+    suggestion_body = (
+        "".join(
+            f'<div class="explanation-line">{html.escape(line)}</div>'
+            for line in sections["建议"]
+        )
+        or '<div class="explanation-line">暂无补充建议。</div>'
+    )
     literature_body_parts: list[str] = []
     for entry in literature_entries[:3]:
         title = html.escape(str(entry.get("title", "未命名文献")))
@@ -923,17 +1034,16 @@ def render_explanation_sections(explanation: str, literature_entries: list[dict[
             points = "；".join(html.escape(str(point)) for point in key_points[:3])
         else:
             points = "该文献用于支撑本次解释。"
-        literature_body_parts.append(
-            dedent(
-                f"""
+        literature_body_parts.append(dedent(f"""
                 <div class="literature-item">
                   <a class="literature-link" href="{url}" target="_blank" rel="noopener noreferrer">{title}</a>
                   <div>{points}</div>
                 </div>
-                """
-            ).strip()
-        )
-    literature_body = "".join(literature_body_parts) or '<div class="explanation-line">无可用文献依据。</div>'
+                """).strip())
+    literature_body = (
+        "".join(literature_body_parts)
+        or '<div class="explanation-line">无可用文献依据。</div>'
+    )
     card_markup = (
         '<div class="detail-card">'
         '<div class="workspace-kicker">Interpretation</div>'
@@ -953,8 +1063,7 @@ def render_explanation_sections(explanation: str, literature_entries: list[dict[
 
 
 def build_llm_loading_markup() -> str:
-    return dedent(
-        """
+    return dedent("""
         <div class="detail-card loading-card">
           <div class="workspace-kicker">LLM Enhancement</div>
           <div class="loading-title">正在生成增强解释</div>
@@ -968,8 +1077,7 @@ def build_llm_loading_markup() -> str:
           </div>
           <div class="loading-bar"><span></span></div>
         </div>
-        """
-    ).strip()
+        """).strip()
 
 
 def render_llm_loading_state(slot: st.delta_generator.DeltaGenerator) -> None:
@@ -978,9 +1086,7 @@ def render_llm_loading_state(slot: st.delta_generator.DeltaGenerator) -> None:
 
 def build_metric_grid_markup(payload: dict[str, str], result: PredictionResult) -> str:
     toxicity_tone = html.escape(result.toxicity_level)
-    return (
-        dedent(
-        f"""
+    return dedent(f"""
         <div class="metric-grid">
           <div class="metric-card">
             <div class="metric-label">毒性等级</div>
@@ -995,9 +1101,7 @@ def build_metric_grid_markup(payload: dict[str, str], result: PredictionResult) 
             <div class="metric-value">{html.escape(payload["confidence"])}</div>
           </div>
         </div>
-        """
-        ).strip()
-    )
+        """).strip()
 
 
 def render_result_panel(
@@ -1040,7 +1144,9 @@ def main() -> None:
             if use_llm:
                 render_llm_loading_state(llm_loading_slot)
             bundle = load_or_train_bundle(MODEL_PATH, DATA_PATH)
-            literature = select_literature(load_literature(LITERATURE_PATH), "feature_explanation")
+            literature = select_literature(
+                load_literature(LITERATURE_PATH), "feature_explanation"
+            )
             result = predict_toxicity(bundle, sample)
             explanation = build_explanation(sample, result, literature)
             if use_llm:
