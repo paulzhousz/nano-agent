@@ -6,8 +6,8 @@
 .streamlit/secrets.toml
 __pycache__/
 *.py[cod]
-models/*.joblib
-models/*.json
+# models/*.joblib
+# models/*.json
 data/cache/
 .superpowers/
 .worktrees/
