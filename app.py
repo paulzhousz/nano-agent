@@ -708,23 +708,40 @@ def render_input_panel() -> tuple[PredictionInput, bool, bool]:
 
     with st.form("prediction_form", clear_on_submit=False):
         st.markdown("#### 材料属性")
-        particle_size_nm = st.number_input("粒径 (nm)", min_value=1.0, value=90.0, step=1.0)
-        zeta_potential_mv = st.number_input("Zeta 电位 (mV)", value=-8.0, step=1.0)
-        material_type = st.selectbox(
-            "材料类型",
-            ["liposome", "polymer", "metal_oxide", "gold", "silver", "carbon", "zinc_oxide", "copper_oxide"],
-        )
-        surface_modification = st.selectbox("表面修饰", ["PEG", "unmodified", "citrate"])
+        material_col_left, material_col_right = st.columns(2, gap="medium")
+        with material_col_left:
+            particle_size_nm = st.number_input("粒径 (nm)", min_value=1.0, value=90.0, step=1.0)
+        with material_col_right:
+            zeta_potential_mv = st.number_input("Zeta 电位 (mV)", value=-8.0, step=1.0)
+
+        material_meta_col_left, material_meta_col_right = st.columns(2, gap="medium")
+        with material_meta_col_left:
+            material_type = st.selectbox(
+                "材料类型",
+                ["liposome", "polymer", "metal_oxide", "gold", "silver", "carbon", "zinc_oxide", "copper_oxide"],
+            )
+        with material_meta_col_right:
+            surface_modification = st.selectbox("表面修饰", ["PEG", "unmodified", "citrate"])
 
         st.markdown("#### 暴露条件")
-        dose_ug_ml = st.number_input("暴露剂量 (μg/mL)", min_value=0.0, value=50.0, step=5.0)
-        exposure_time_h = st.number_input("暴露时间 (h)", min_value=1.0, value=24.0, step=1.0)
+        exposure_col_left, exposure_col_right = st.columns(2, gap="medium")
+        with exposure_col_left:
+            dose_ug_ml = st.number_input("暴露剂量 (μg/mL)", min_value=0.0, value=50.0, step=5.0)
+        with exposure_col_right:
+            exposure_time_h = st.number_input("暴露时间 (h)", min_value=1.0, value=24.0, step=1.0)
 
         st.markdown("#### 实验对象")
-        cell_type = st.selectbox("细胞类型", ["A549", "BEAS-2B", "HepG2", "THP-1", "NRK-52E"])
-        species = st.selectbox("来源物种", ["Human", "Rat", "Mouse"])
-        tissue = st.selectbox("组织来源", ["Lung", "Liver", "Blood", "Kidney"])
-        assay_method = st.selectbox("检测方法", ["MTT", "LDH"])
+        experiment_col_left, experiment_col_right = st.columns(2, gap="medium")
+        with experiment_col_left:
+            cell_type = st.selectbox("细胞类型", ["A549", "BEAS-2B", "HepG2", "THP-1", "NRK-52E"])
+        with experiment_col_right:
+            species = st.selectbox("来源物种", ["Human", "Rat", "Mouse"])
+
+        experiment_meta_col_left, experiment_meta_col_right = st.columns(2, gap="medium")
+        with experiment_meta_col_left:
+            tissue = st.selectbox("组织来源", ["Lung", "Liver", "Blood", "Kidney"])
+        with experiment_meta_col_right:
+            assay_method = st.selectbox("检测方法", ["MTT", "LDH"])
 
         st.markdown("#### 解释增强")
         use_llm = st.checkbox("使用可选 LLM 改写解释", value=False)
